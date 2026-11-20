@@ -9,10 +9,13 @@ final class Flash {
     private static let hold = 1.2
     private static let retract = 0.24
     private static let rowHeight: CGFloat = 52
+    private static let padding: CGFloat = 16  // between the hint and the island's sides
+    private static let ear: CGFloat = 10      // radius of the inverted corners where the island meets the top edge
 
     private let panel = makeOverlayPanel()
     private let root = CALayer()
-    private let pill = CALayer()     // the black island; clips its content
+    private let pill = CALayer()     // black, clipped to the island shape by `shape`
+    private let shape = CAShapeLayer()
     private let content = CALayer()  // icon, name and keycaps; slides down inside the pill
     private var generation = 0
     private var shownOn: NSScreen?
@@ -23,10 +26,7 @@ final class Flash {
         host.wantsLayer = true
         panel.contentView = host
         pill.backgroundColor = NSColor.black.cgColor
-        pill.cornerRadius = 18
-        pill.maskedCorners = [.layerMinXMinYCorner, .layerMaxXMinYCorner]  // bottom corners
-        pill.masksToBounds = true
-        pill.anchorPoint = CGPoint(x: 0.5, y: 1)  // top centre: it hangs from the notch
+        pill.mask = shape
         content.anchorPoint = CGPoint(x: 0.5, y: 0)
         root.addSublayer(pill)
         pill.addSublayer(content)
@@ -38,14 +38,15 @@ final class Flash {
         let mine = generation
         let notch = notchRect(on: screen)
         let row = buildContent(binding, app: app, scale: screen.backingScaleFactor)
-        let size = CGSize(width: max(notch.width + 120, row.width + 40), height: notch.height + Self.rowHeight)
+        let islandWidth = max(row.width + 2 * Self.padding, notch.width)
+        let size = CGSize(width: islandWidth + 2 * Self.ear, height: notch.height + Self.rowHeight)
         let reduceMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
 
-        // Pill: from the notch's own size to the full island. Content: from just above the pill's
-        // top edge (hidden) to the band under the notch.
-        let startBounds = CGRect(x: 0, y: 0, width: notch.width, height: notch.height)
-        let endBounds = CGRect(origin: .zero, size: size)
-        let startContent = CGPoint(x: notch.width / 2, y: notch.height)
+        // Island: from the notch's own shape to one that hugs the hint. Content: from just above
+        // the top edge (hidden) down into the band under the notch.
+        let startPath = islandPath(width: notch.width, height: notch.height, ear: 0, in: size)
+        let endPath = islandPath(width: islandWidth, height: size.height, ear: Self.ear, in: size)
+        let startContent = CGPoint(x: size.width / 2, y: size.height)
         let endContent = CGPoint(x: size.width / 2, y: 0)
 
         let alreadyHere = panel.isVisible && shownOn == screen
@@ -55,11 +56,12 @@ final class Flash {
 
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        pill.removeAllAnimations()
+        shape.removeAllAnimations()
         content.removeAllAnimations()
         root.frame = CGRect(origin: .zero, size: size)
-        pill.position = CGPoint(x: size.width / 2, y: size.height)
-        pill.bounds = endBounds
+        pill.frame = root.frame
+        shape.frame = root.frame
+        shape.path = endPath
         content.bounds = CGRect(origin: .zero, size: row)
         content.position = endContent
         content.opacity = 1
@@ -74,7 +76,7 @@ final class Flash {
             NSAnimationContext.runAnimationGroup { $0.duration = 0.2; panel.animator().alphaValue = 1 }
         } else {
             panel.orderFrontRegardless()
-            spring(pill, "bounds", from: startBounds, to: endBounds)
+            spring(shape, "path", from: startPath, to: endPath)
             spring(content, "position", from: startContent, to: endContent)
         }
 
@@ -92,7 +94,7 @@ final class Flash {
                 wait.duration = Self.retract
                 content.add(wait, forKey: "wait")
             } else {
-                retract(pill, "bounds", to: startBounds)
+                retract(shape, "path", to: startPath)
                 retract(content, "position", to: startContent)
             }
             CATransaction.commit()
@@ -120,6 +122,39 @@ final class Flash {
         animation.timingFunction = CAMediaTimingFunction(controlPoints: 0.4, 0, 1, 1)
         layer.setValue(to, forKeyPath: keyPath)  // stay retracted when the animation ends
         layer.add(animation, forKey: keyPath)
+    }
+
+    // MARK: Shape
+
+    /// A rounded-bottom island hanging from the top edge of a `size` canvas, centred, whose top
+    /// corners curve outward into the edge (inverted corners), like the notch itself.
+    /// Every call emits the same elements so CoreAnimation can morph between any two.
+    private func islandPath(width: CGFloat, height: CGFloat, ear: CGFloat, in size: CGSize) -> CGPath {
+        let top = size.height, bottom = top - height
+        let left = (size.width - width) / 2, right = left + width
+        let e = min(ear, height)
+        let r = min(18, height / 2, width / 2)
+        let path = CGMutablePath()
+        path.move(to: CGPoint(x: left - e, y: top))
+        path.addLine(to: CGPoint(x: right + e, y: top))
+        corner(path, via: CGPoint(x: right, y: top), to: CGPoint(x: right, y: top - e))
+        path.addLine(to: CGPoint(x: right, y: bottom + r))
+        corner(path, via: CGPoint(x: right, y: bottom), to: CGPoint(x: right - r, y: bottom))
+        path.addLine(to: CGPoint(x: left + r, y: bottom))
+        corner(path, via: CGPoint(x: left, y: bottom), to: CGPoint(x: left, y: bottom + r))
+        path.addLine(to: CGPoint(x: left, y: top - e))
+        corner(path, via: CGPoint(x: left, y: top), to: CGPoint(x: left - e, y: top))
+        path.closeSubpath()
+        return path
+    }
+
+    /// A circular-looking corner from the current point to `end`, turning at `via`.
+    private func corner(_ path: CGMutablePath, via: CGPoint, to end: CGPoint) {
+        let k: CGFloat = 0.5523  // cubic approximation of a quarter circle
+        let start = path.currentPoint
+        path.addCurve(to: end,
+                      control1: CGPoint(x: start.x + (via.x - start.x) * k, y: start.y + (via.y - start.y) * k),
+                      control2: CGPoint(x: end.x + (via.x - end.x) * k, y: end.y + (via.y - end.y) * k))
     }
 
     // MARK: Content

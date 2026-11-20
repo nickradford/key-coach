@@ -24,15 +24,30 @@ private final class OverlayPanel: NSPanel {
     return panel
 }
 
-/// The notch's rect in screen coordinates; on a notchless screen, a zero-height rect 180 pt wide at top centre.
-@MainActor func notchRect(on screen: NSScreen) -> NSRect {
+/// The hardware notch's rect in screen coordinates, or nil when the screen has none.
+@MainActor func hardwareNotch(on screen: NSScreen) -> NSRect? {
     let frame = screen.frame
     let height = screen.safeAreaInsets.top
-    if height > 0, let left = screen.auxiliaryTopLeftArea, let right = screen.auxiliaryTopRightArea {
-        return NSRect(x: frame.minX + left.width, y: frame.maxY - height,
-                      width: frame.width - left.width - right.width, height: height)
-    }
-    return NSRect(x: frame.midX - 90, y: frame.maxY, width: 180, height: 0)
+    guard height > 0, let left = screen.auxiliaryTopLeftArea, let right = screen.auxiliaryTopRightArea else { return nil }
+    return NSRect(x: frame.minX + left.width, y: frame.maxY - height,
+                  width: frame.width - left.width - right.width, height: height)
+}
+
+/// The notch the overlays grow from: the hardware notch, Alcove's fake notch on other screens,
+/// or a zero-height sliver at the top centre.
+@MainActor func notchRect(on screen: NSScreen) -> NSRect {
+    if let notch = hardwareNotch(on: screen) { return notch }
+    return notchlessStart(screenFrame: screen.frame,
+                          menuBarHeight: screen.frame.maxY - screen.visibleFrame.maxY,
+                          builtInNotchWidth: NSScreen.screens.lazy.compactMap(hardwareNotch).first?.width,
+                          alcoveOnAllDisplays: alcoveOnAllDisplays())
+}
+
+/// Whether Alcove is running and set to show its notch on every display.
+@MainActor func alcoveOnAllDisplays() -> Bool {
+    let id = "com.henrikruscon.Alcove"
+    guard !NSRunningApplication.runningApplications(withBundleIdentifier: id).isEmpty else { return false }
+    return CFPreferencesCopyAppValue("showOnDisplay" as CFString, id as CFString) as? String == "allDisplays"
 }
 
 /// On-screen normal windows, front to back, in AppKit screen coordinates. Reads no titles or contents.

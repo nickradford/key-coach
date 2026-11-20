@@ -33,3 +33,16 @@ public func badgePoints(windows: [WindowInfo], pids: Set<Int32>) -> [Int32: CGPo
     }
     return points
 }
+
+/// Where the flash grows from on a screen with no hardware notch.
+/// With Alcove set to show on all displays it draws a fake notch there; its size is not stored
+/// anywhere readable, so assume the built-in notch's width and the menu bar's height.
+public func notchlessStart(screenFrame: CGRect, menuBarHeight: CGFloat, builtInNotchWidth: CGFloat?,
+                           alcoveOnAllDisplays: Bool) -> CGRect {
+    guard alcoveOnAllDisplays else {
+        return CGRect(x: screenFrame.midX - 90, y: screenFrame.maxY, width: 180, height: 0)
+    }
+    let width = builtInNotchWidth ?? 185
+    let height = menuBarHeight > 0 ? menuBarHeight : 32
+    return CGRect(x: screenFrame.midX - width / 2, y: screenFrame.maxY - height, width: width, height: height)
+}
