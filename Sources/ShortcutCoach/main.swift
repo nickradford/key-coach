@@ -11,6 +11,8 @@ let menu = NSMenu()
 menu.addItem(NSMenuItem(title: "Quit Shortcut Coach", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
 statusItem.menu = menu
 
+let flash = Flash()
 let coach = Coach()
+coach.onMiss = { flash.show($0, app: $1) }
 coach.start()
 app.run()
