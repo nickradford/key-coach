@@ -1,22 +1,12 @@
 import AppKit
 import CoachCore
 
-/// Shown while hyper is held: a strip of the hyper bindings under the notch,
+/// Shown while hyper is held: the hyper bindings in an island under the notch,
 /// and a letter badge on each bound app's visible window.
 @MainActor
 final class Guide {
-    private let strip = makeOverlayPanel()
-    private let pill = NSView()
-    private var row = NSStackView()
+    private let island = Island()
     private var badges: [NSPanel] = []
-
-    init() {
-        pill.wantsLayer = true
-        pill.layer?.backgroundColor = NSColor.black.cgColor
-        pill.layer?.cornerRadius = 18
-        pill.layer?.maskedCorners = [.layerMinXMinYCorner, .layerMaxXMinYCorner]  // bottom corners
-        strip.contentView?.addSubview(pill)
-    }
 
     func show() {
         let prefs = loadTinycastPrefs()
@@ -26,46 +16,40 @@ final class Guide {
     }
 
     func hide() {
-        strip.orderOut(nil)
+        island.hide()
         badges.forEach { $0.orderOut(nil) }
         badges = []
     }
 
+    /// One cell per installed hyper-bound app (icon over keycap), plus "Hide others" when it is on hyper.
     private func showStrip(_ bindings: [Binding], prefs: [String: Any]) {
         guard let screen = pointerScreen() else { return }
-        var cells: [NSView] = bindings.compactMap { binding in
+        let scale = screen.backingScaleFactor
+        var cells: [(top: CALayer, key: String)] = bindings.compactMap { binding in
             guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: binding.bundleID) else { return nil }
-            let icon = NSImageView(image: NSWorkspace.shared.icon(forFile: url.path))
-            NSLayoutConstraint.activate([icon.widthAnchor.constraint(equalToConstant: 36), icon.heightAnchor.constraint(equalToConstant: 36)])
-            return cell(top: icon, key: binding.keyName)
+            return (iconLayer(NSWorkspace.shared.icon(forFile: url.path), side: 36, scale: scale), binding.keyName)
         }
         if let combo = parseCombo(prefs["hotkey.systemAction.hide-all-apps-except-frontmost"]), combo.modifiers == hyperModifiers {
-            let label = NSTextField(labelWithString: "Hide others")
-            label.font = .systemFont(ofSize: 13)
-            label.textColor = .white
-            cells.append(cell(top: label, key: Binding(bundleID: "", keyCode: combo.keyCode, modifiers: combo.modifiers).keyName))
+            let key = Binding(bundleID: "", keyCode: combo.keyCode, modifiers: combo.modifiers).keyName
+            cells.append((textLayer("Hide others", size: 13, weight: .regular, scale: scale), key))
         }
         guard !cells.isEmpty else { return }
 
-        row.removeFromSuperview()
-        row = NSStackView(views: cells)
-        row.spacing = 16
-        row.alignment = .bottom
-        let content = row.fittingSize
-        let notch = notchRect(on: screen)
-        let size = NSSize(width: max(content.width + 40, notch.width + 60), height: notch.height + content.height + 24)
-        strip.setFrame(NSRect(x: notch.midX - size.width / 2, y: screen.frame.maxY - size.height, width: size.width, height: size.height), display: false)
-        pill.frame = NSRect(origin: .zero, size: size)
-        row.frame = NSRect(x: (size.width - content.width) / 2, y: 12, width: content.width, height: content.height)
-        strip.contentView?.addSubview(row)
-        fadeIn(strip)
-    }
-
-    private func cell(top: NSView, key: String) -> NSView {
-        let cell = NSStackView(views: [top, keycap(key)])
-        cell.orientation = .vertical
-        cell.spacing = 6
-        return cell
+        let padding: CGFloat = 12, iconSlot: CGFloat = 36, gap: CGFloat = 6, spacing: CGFloat = 16
+        let height = padding + 26 + gap + iconSlot + padding
+        let row = CALayer()
+        var x: CGFloat = 0
+        for cell in cells {
+            let cap = keycapLayer(cell.key, scale: scale)
+            let width = max(cell.top.frame.width, cap.frame.width)
+            cap.frame.origin = CGPoint(x: x + (width - cap.frame.width) / 2, y: padding)
+            cell.top.frame.origin = CGPoint(x: x + (width - cell.top.frame.width) / 2,
+                                            y: padding + 26 + gap + (iconSlot - cell.top.frame.height) / 2)
+            row.addSublayer(cap)
+            row.addSublayer(cell.top)
+            x += width + spacing
+        }
+        island.show(row, size: CGSize(width: x - spacing, height: height), sidePadding: 20, on: screen)
     }
 
     private func showBadges(_ bindings: [Binding]) {

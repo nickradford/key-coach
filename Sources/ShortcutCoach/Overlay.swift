@@ -79,24 +79,3 @@ private final class OverlayPanel: NSPanel {
     }
     return pointerScreen()
 }
-
-/// One key drawn as a keycap: white text on a translucent rounded square.
-@MainActor func keycap(_ text: String, size: CGFloat = 14) -> NSView {
-    let label = NSTextField(labelWithString: text)
-    label.font = .systemFont(ofSize: size, weight: .semibold)
-    label.textColor = .white
-    label.translatesAutoresizingMaskIntoConstraints = false
-    let box = NSView()
-    box.wantsLayer = true
-    box.layer?.backgroundColor = NSColor(white: 1, alpha: 0.2).cgColor
-    box.layer?.cornerRadius = 6
-    box.addSubview(label)
-    NSLayoutConstraint.activate([
-        label.centerXAnchor.constraint(equalTo: box.centerXAnchor),
-        label.centerYAnchor.constraint(equalTo: box.centerYAnchor),
-        box.widthAnchor.constraint(greaterThanOrEqualTo: label.widthAnchor, constant: 12),
-        box.widthAnchor.constraint(greaterThanOrEqualToConstant: size + 12),
-        box.heightAnchor.constraint(equalToConstant: size + 12),
-    ])
-    return box
-}
