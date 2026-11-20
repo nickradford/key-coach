@@ -12,6 +12,7 @@ Nick has app-switching hotkeys set up in Tinycast (a Raycast-style launcher) on 
 2. **Hold guide.** When Caps Lock is held for about 0.7 s without a hotkey firing, show the hyper bindings; hide on release.
 3. **Always in sync with Tinycast.** Bindings are read from Tinycast's preferences, never typed in twice.
 4. **No macOS permission prompts** (no Input Monitoring, Accessibility or Screen Recording), provided the step-zero test below passes.
+   *Revised 2026-11-20:* a real mouse move resets the modifier flags Tinycast posts for hyper, so a held Caps Lock read as released. Every permission-free reading behaved the same (tested). The app now asks for Input Monitoring and reads the physical Caps Lock from the raw HID device (tested: clean down/up through mouse moves), falling back to the flags when not granted.
 
 ## Non-goals
 

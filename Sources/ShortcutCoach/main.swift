@@ -16,5 +16,6 @@ let coach = Coach()
 coach.onMiss = { flash.show($0, app: $1) }
 let guide = Guide()
 coach.onGuide = { $0 ? guide.show() : guide.hide() }
+CapsLock.shared.start()
 coach.start()
 app.run()
