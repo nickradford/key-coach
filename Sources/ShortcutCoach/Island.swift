@@ -8,9 +8,6 @@ import CoreImage
 final class Island {
     private static let ear: CGFloat = 10       // radius of the inverted corners at the top edge
     private static let headroom: CGFloat = 28  // spare window around the island so the spring's overshoot is never clipped
-    private static let hideDuration = 0.26
-    private static let enterScale = 0.82
-    private static let enterBlur = 10.0
     private static let enterLift: CGFloat = 14  // content starts this far up and settles down
 
     private let panel = makeOverlayPanel()
@@ -56,10 +53,7 @@ final class Island {
         content = newContent
         content.bounds = CGRect(origin: .zero, size: contentSize)
         content.position = centre
-        let blur = CIFilter(name: "CIGaussianBlur")!
-        blur.name = "blur"
-        blur.setValue(0, forKey: kCIInputRadiusKey)
-        content.filters = [blur]
+        addBlurFilter(content)
         root.frame = CGRect(origin: .zero, size: size)
         fill.frame = root.frame
         shape.frame = root.frame
@@ -80,9 +74,7 @@ final class Island {
         }
         spring(shape, "path", from: start, to: end)
         spring(content, "position", from: CGPoint(x: centre.x, y: centre.y + Self.enterLift), to: centre)
-        spring(content, "transform.scale", from: Self.enterScale, to: 1.0)
-        ease(content, "filters.blur.inputRadius", from: Self.enterBlur, to: 0.0, duration: 0.4, out: true)
-        ease(content, "opacity", from: 0.0, to: 1.0, duration: 0.3, out: true)
+        materialize(content)
     }
 
     /// Retracts into the notch, then takes the window off screen.
@@ -96,44 +88,15 @@ final class Island {
             panel.orderOut(nil)
         }
         if NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
-            NSAnimationContext.runAnimationGroup({ $0.duration = Self.hideDuration; panel.animator().alphaValue = 0 },
+            NSAnimationContext.runAnimationGroup({ $0.duration = exitDuration; panel.animator().alphaValue = 0 },
                                                  completionHandler: done)
             return
         }
-        let shown = content.presentation()
         CATransaction.begin()
         CATransaction.setCompletionBlock(done)
         retract(shape, "path", from: shape.presentation()?.path ?? shape.path, to: start)
-        retract(content, "transform.scale", from: shown?.value(forKeyPath: "transform.scale") ?? 1.0, to: Self.enterScale)
-        retract(content, "filters.blur.inputRadius", from: 0.0, to: Self.enterBlur * 0.8)
-        retract(content, "opacity", from: shown?.opacity ?? 1, to: 0.0)
+        dematerialize(content)
         CATransaction.commit()
-    }
-
-    // MARK: Motion
-
-    private func spring(_ layer: CALayer, _ keyPath: String, from: Any, to: Any) {
-        let animation = CASpringAnimation(perceptualDuration: 0.5, bounce: 0.2)
-        animation.keyPath = keyPath
-        animation.duration = animation.settlingDuration
-        animation.fromValue = from
-        animation.toValue = to
-        layer.add(animation, forKey: keyPath)
-    }
-
-    private func ease(_ layer: CALayer, _ keyPath: String, from: Any, to: Any, duration: Double, out: Bool) {
-        let animation = CABasicAnimation(keyPath: keyPath)
-        animation.fromValue = from
-        animation.toValue = to
-        animation.duration = duration
-        animation.timingFunction = out ? CAMediaTimingFunction(controlPoints: 0.16, 1, 0.3, 1)
-                                       : CAMediaTimingFunction(controlPoints: 0.5, 0, 0.9, 0.5)
-        layer.add(animation, forKey: keyPath)
-    }
-
-    private func retract(_ layer: CALayer, _ keyPath: String, from: Any?, to: Any) {
-        layer.setValue(to, forKeyPath: keyPath)  // stay retracted after the animation ends
-        ease(layer, keyPath, from: from as Any, to: to, duration: Self.hideDuration, out: false)
     }
 
     // MARK: Shape
@@ -168,6 +131,61 @@ final class Island {
                       control1: CGPoint(x: start.x + (via.x - start.x) * k, y: start.y + (via.y - start.y) * k),
                       control2: CGPoint(x: end.x + (via.x - end.x) * k, y: end.y + (via.y - end.y) * k))
     }
+}
+
+// MARK: Motion shared by the island and the window badges
+
+private let enterScale = 0.82
+private let enterBlur = 10.0
+let exitDuration = 0.26
+
+/// Gives `layer` a blur named "blur" at radius 0, so its radius can be animated.
+/// The hosting view needs `layerUsesCoreImageFilters`.
+@MainActor func addBlurFilter(_ layer: CALayer) {
+    let blur = CIFilter(name: "CIGaussianBlur")!
+    blur.name = "blur"
+    blur.setValue(0, forKey: kCIInputRadiusKey)
+    layer.filters = [blur]
+}
+
+/// Entrance: scales up, sharpens from a blur and fades in, on the island's spring.
+@MainActor func materialize(_ layer: CALayer) {
+    spring(layer, "transform.scale", from: enterScale, to: 1.0)
+    ease(layer, "filters.blur.inputRadius", from: enterBlur, to: 0.0, duration: 0.4, out: true)
+    ease(layer, "opacity", from: 0.0, to: 1.0, duration: 0.3, out: true)
+}
+
+/// Exit: the entrance in reverse, quicker. The layer stays invisible afterwards.
+@MainActor func dematerialize(_ layer: CALayer) {
+    let shown = layer.presentation()
+    retract(layer, "transform.scale", from: shown?.value(forKeyPath: "transform.scale") ?? 1.0, to: enterScale)
+    retract(layer, "filters.blur.inputRadius", from: 0.0, to: enterBlur * 0.8)
+    retract(layer, "opacity", from: shown?.opacity ?? 1, to: 0.0)
+}
+
+@MainActor func spring(_ layer: CALayer, _ keyPath: String, from: Any, to: Any) {
+    let animation = CASpringAnimation(perceptualDuration: 0.5, bounce: 0.2)
+    animation.keyPath = keyPath
+    animation.duration = animation.settlingDuration
+    animation.fromValue = from
+    animation.toValue = to
+    layer.add(animation, forKey: keyPath)
+}
+
+@MainActor func ease(_ layer: CALayer, _ keyPath: String, from: Any, to: Any, duration: Double, out: Bool) {
+    let animation = CABasicAnimation(keyPath: keyPath)
+    animation.fromValue = from
+    animation.toValue = to
+    animation.duration = duration
+    animation.timingFunction = out ? CAMediaTimingFunction(controlPoints: 0.16, 1, 0.3, 1)
+                                   : CAMediaTimingFunction(controlPoints: 0.5, 0, 0.9, 0.5)
+    layer.add(animation, forKey: keyPath)
+}
+
+/// Animates to `to` and keeps it there.
+@MainActor func retract(_ layer: CALayer, _ keyPath: String, from: Any?, to: Any) {
+    layer.setValue(to, forKeyPath: keyPath)
+    ease(layer, keyPath, from: from as Any, to: to, duration: exitDuration, out: false)
 }
 
 // MARK: Content building blocks

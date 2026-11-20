@@ -17,8 +17,7 @@ final class Guide {
 
     func hide() {
         island.hide()
-        badges.forEach { $0.orderOut(nil) }
-        badges = []
+        hideBadges()
     }
 
     /// One cell per installed hyper-bound app (icon over keycap), plus "Hide others" when it is on hyper.
@@ -60,34 +59,51 @@ final class Guide {
             }
         }
         let side: CGFloat = 76
+        let margin: CGFloat = 20  // spare window so the spring's overshoot and the blur are not clipped
+        let window = side + 2 * margin
+        let animate = !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
         for (pid, point) in badgePoints(windows: onScreenWindows(), pids: Set(letters.keys)) {
+            let scale = NSScreen.screens.first { $0.frame.contains(point) }?.backingScaleFactor ?? 2
             let panel = makeOverlayPanel()
-            panel.setFrame(NSRect(x: point.x - side / 2, y: point.y - side / 2, width: side, height: side), display: false)
-            guard let box = panel.contentView else { continue }
-            box.layer?.backgroundColor = NSColor.black.cgColor
-            box.layer?.cornerRadius = 18
-            box.layer?.borderColor = NSColor(white: 1, alpha: 0.3).cgColor  // keeps the badge visible on dark windows
-            box.layer?.borderWidth = 1
-            let label = NSTextField(labelWithString: letters[pid] ?? "")
-            label.font = .systemFont(ofSize: 40, weight: .bold)
-            label.textColor = .white
-            label.translatesAutoresizingMaskIntoConstraints = false
-            box.addSubview(label)
-            NSLayoutConstraint.activate([label.centerXAnchor.constraint(equalTo: box.centerXAnchor), label.centerYAnchor.constraint(equalTo: box.centerYAnchor)])
-            fadeIn(panel)
+            panel.setFrame(NSRect(x: point.x - window / 2, y: point.y - window / 2, width: window, height: window), display: false)
+            let root = CALayer()
+            let host = NSView()
+            host.layer = root  // layer-hosting, so the badge layer can blur
+            host.wantsLayer = true
+            host.layerUsesCoreImageFilters = true
+            panel.contentView = host
+
+            let badge = CALayer()
+            badge.frame = CGRect(x: margin, y: margin, width: side, height: side)
+            badge.backgroundColor = NSColor.black.cgColor
+            badge.cornerRadius = 18
+            badge.borderColor = NSColor(white: 1, alpha: 0.3).cgColor  // keeps the badge visible on dark windows
+            badge.borderWidth = 1
+            let letter = textLayer(letters[pid] ?? "", size: 40, weight: .bold, scale: scale)
+            letter.frame.origin = CGPoint(x: (side - letter.frame.width) / 2, y: (side - letter.frame.height) / 2)
+            badge.addSublayer(letter)
+            addBlurFilter(badge)
+            root.addSublayer(badge)
+
+            panel.orderFrontRegardless()
+            if animate { materialize(badge) }
             badges.append(panel)
         }
     }
 
-    private func fadeIn(_ panel: NSPanel) {
-        let instant = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
-        panel.alphaValue = instant ? 1 : 0
-        panel.orderFrontRegardless()
-        if !instant {
-            NSAnimationContext.runAnimationGroup { context in
-                context.duration = 0.12
-                panel.animator().alphaValue = 1
-            }
+    /// Plays the exit on each badge, then takes its window off screen.
+    private func hideBadges() {
+        let leaving = badges
+        badges = []
+        guard !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion else {
+            leaving.forEach { $0.orderOut(nil) }
+            return
         }
+        CATransaction.begin()
+        CATransaction.setCompletionBlock { leaving.forEach { $0.orderOut(nil) } }
+        for panel in leaving {
+            if let badge = panel.contentView?.layer?.sublayers?.first { dematerialize(badge) }
+        }
+        CATransaction.commit()
     }
 }
