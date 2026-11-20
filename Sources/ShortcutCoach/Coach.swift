@@ -48,7 +48,9 @@ final class Coach: NSObject {
         let bindings = parseBindings(loadTinycastPrefs())
         let input = MissInput(activated: id, previousFrontmost: previousFrontmost, now: now, lastHeld: lastHeld)
         if bindings.contains(where: { $0.bundleID == id }) { tracker.boundAppActivated() }
-        previousFrontmost = id
+        // A lock screen, password prompt or other non-regular app taking focus is not a switch:
+        // coming back from it to the same app must not count as a miss.
+        if app.activationPolicy == .regular { previousFrontmost = id }
         // macOS reports a quit or hide about 10 ms after the next app's activation, so decide a moment later.
         Task {
             try? await Task.sleep(for: .milliseconds(150))

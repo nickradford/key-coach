@@ -36,6 +36,8 @@ cat > "$agent" <<EOF
     <key>Label</key><string>$label</string>
     <key>ProgramArguments</key><array><string>$app/Contents/MacOS/ShortcutCoach</string></array>
     <key>RunAtLoad</key><true/>
+    <!-- Without this launchd throttles the app's timers and the 30 Hz key poll runs at about 12 Hz. -->
+    <key>ProcessType</key><string>Interactive</string>
 </dict></plist>
 EOF
 launchctl bootstrap "gui/$UID" "$agent"
