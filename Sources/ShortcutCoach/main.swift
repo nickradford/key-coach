@@ -14,5 +14,7 @@ statusItem.menu = menu
 let flash = Flash()
 let coach = Coach()
 coach.onMiss = { flash.show($0, app: $1) }
+let guide = Guide()
+coach.onGuide = { $0 ? guide.show() : guide.hide() }
 coach.start()
 app.run()
