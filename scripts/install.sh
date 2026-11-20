@@ -13,7 +13,8 @@ launchctl bootout "gui/$UID/$label" 2>/dev/null || true
 while launchctl print "gui/$UID/$label" &>/dev/null; do sleep 0.2; done  # bootout is asynchronous
 
 rm -rf "$app"
-mkdir -p "$app/Contents/MacOS" "$HOME/Library/LaunchAgents"
+mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources" "$HOME/Library/LaunchAgents"
+cp assets/AppIcon.icns "$app/Contents/Resources/AppIcon.icns"
 cp .build/release/ShortcutCoach "$app/Contents/MacOS/ShortcutCoach"
 cat > "$app/Contents/Info.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
@@ -22,6 +23,7 @@ cat > "$app/Contents/Info.plist" <<EOF
     <key>CFBundleIdentifier</key><string>$label</string>
     <key>CFBundleName</key><string>Shortcut Coach</string>
     <key>CFBundleExecutable</key><string>ShortcutCoach</string>
+    <key>CFBundleIconFile</key><string>AppIcon</string>
     <key>CFBundlePackageType</key><string>APPL</string>
     <key>LSUIElement</key><true/>
     <key>LSMinimumSystemVersion</key><string>14.0</string>
