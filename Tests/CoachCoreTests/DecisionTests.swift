@@ -36,6 +36,10 @@ func miss(_ i: MissInput) -> Binding? { missedBinding(i, bindings: all, ownBundl
     #expect(miss(MissInput(activated: "slack", previousFrontmost: "zed", now: 100, lastQuitOrHide: ("zed", 99.4))) == slackB)
     #expect(miss(MissInput(activated: "slack", previousFrontmost: "zed", now: 100, lastQuitOrHide: ("dia", 99.9))) == slackB)
 }
+// macOS delivers the quit notification just after the activation, so the caller decides slightly late.
+@Test func quitReportedJustAfterActivationSuppresses() {
+    #expect(miss(MissInput(activated: "slack", previousFrontmost: "zed", now: 100, lastQuitOrHide: ("zed", 100.01))) == nil)
+}
 
 @Test func guideOpensAfterDelayAndClosesOnRelease() {
     var t = HoldTracker()

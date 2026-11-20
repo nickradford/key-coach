@@ -91,6 +91,7 @@ Key names for display come from a small table: letters, digits, arrows, space, F
 - On `NSWorkspace.didActivateApplicationNotification` for a bound app, it is a **miss** unless one of these holds:
   - that binding's modifiers were held within the last 3 s (covers cold launches);
   - the previously frontmost app quit or was hidden within the last 0.5 s (macOS brought the next app forward, Nick did not choose it);
+    macOS reports the quit or hide about 10 ms *after* the next app's activation (observed 2026-11-20), so the decision is made 150 ms after the activation and a quit or hide in that window also suppresses;
   - the app was already frontmost, or is this app itself.
 - Every other route counts as a miss, including clicking a window that was already visible. Nick asked for mouse-click focus to count.
 - Clicking a window of the app that is already frontmost, or moving between its windows, fires no activation and is not coached. That is intended: there was no switch.
