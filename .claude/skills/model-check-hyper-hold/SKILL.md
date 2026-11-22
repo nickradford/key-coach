@@ -78,17 +78,17 @@ Before you trust a new counterexample, replay it against the real code, one mode
 
 ## Coverage
 
-Last confirmed in step with the code at commit `c302b3ee9c66a61f725111e2da57646e74feeb87`.
+Last confirmed in step with the code at commit `bc7b324649715592f039aace2b2504a5b68e7d0f`.
 
 - `Sources/ShortcutCoach/Signal.swift`: `heldModifiers`, `hyperHeld`, `HyperKeyListener.handle`, the input-value callback and main run-loop scheduling in `HyperKeyListener.open`.
 - `Sources/ShortcutCoach/Coach.swift`: `start` (the 1/30 s timer), `sampleModifiers`, `poll`, `appActivated` (synchronous part and the 150 ms `Task`).
 - `Sources/CoachCore/Decisions.swift`: `HoldTracker` (all), `missedBinding` (only the `lastHeld` / `graceSeconds` branch).
 - `Sources/ShortcutCoach/main.swift`: `coach.onGuide` wiring to `Guide.show/hide`.
 
-`git diff c302b3ee9c66a61f725111e2da57646e74feeb87 -- Sources/ShortcutCoach/Signal.swift Sources/ShortcutCoach/Coach.swift Sources/CoachCore/Decisions.swift Sources/ShortcutCoach/main.swift` shows what changed since.
+`git diff bc7b324649715592f039aace2b2504a5b68e7d0f -- Sources/ShortcutCoach/Signal.swift Sources/ShortcutCoach/Coach.swift Sources/CoachCore/Decisions.swift Sources/ShortcutCoach/main.swift` shows what changed since.
 
 ## Not covered
 
-Changing the hyper key (`refreshHyperKey`, onboarding `capture`), lost key-ups (keyboard unplugged or sleep while held, Input Monitoring revoked), two keyboards or Caps Lock and F18 both reporting, the no-permission path beyond the flags reset by a mouse move, quit/hide suppression and `previousFrontmost`, binding parsing, real timing (grace expiry, the 0.7 s delay as time), and everything the guide and flash draw.
+The other key-downs the listener keeps (`handleKeyDown`, `lastPress`) and the switch history (`switchOutcome`, `switchMethod`, `HistoryFile`, recorded in the same `Task` as the miss decision): they change no modeled state, and `missedBinding` does not read `lastPress` yet. Changing the hyper key (`refreshHyperKey`, onboarding `capture`), lost key-ups (keyboard unplugged or sleep while held, Input Monitoring revoked), two keyboards or Caps Lock and F18 both reporting, the no-permission path beyond the flags reset by a mouse move, quit/hide suppression and `previousFrontmost`, binding parsing, real timing (grace expiry, the 0.7 s delay as time), and everything the guide and flash draw.
 
 Two promises are checked in one direction only. No property says that a real miss flashes, and by design a hyper press in the 150 ms before the decision suppresses one. `GuideStaysHiddenAfterActivation` fails if `pressedAt` is stamped when the callback runs instead of from the HID value (replace `actSincePress' = (hidAhead > 0)` with `FALSE` in `HidCallback` to see it).

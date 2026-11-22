@@ -88,3 +88,47 @@ func miss(_ i: MissInput) -> Binding? { missedBinding(i, bindings: all, ownBundl
     #expect(t.update(hyperHeld: true, pressedAt: 9.99, now: 10.01) == false)
     #expect(t.update(hyperHeld: true, pressedAt: 9.99, now: 11.0) == false)
 }
+
+func outcome(_ i: MissInput) -> Outcome? { switchOutcome(i, bindings: all, ownBundleID: "coach") }
+
+@Test func switchToAnUnboundAppIsUnbound() {
+    #expect(outcome(MissInput(activated: "finder", previousFrontmost: "zed", now: 100)) == .unbound)
+}
+@Test func switchToABoundAppIsAMissWithoutItsModifiersAndAHitWithThem() {
+    #expect(outcome(MissInput(activated: "slack", previousFrontmost: "zed", now: 100)) == .miss)
+    #expect(outcome(MissInput(activated: "slack", previousFrontmost: "zed", now: 100, lastHeld: [6912: 99])) == .hit)
+    #expect(outcome(MissInput(activated: "loom", previousFrontmost: "zed", now: 100, lastHeld: [6912: 99])) == .miss)
+}
+@Test func activationsThatAreNotSwitchesHaveNoOutcome() {
+    for app in ["slack", "finder"] {
+        #expect(outcome(MissInput(activated: app, previousFrontmost: app, now: 100)) == nil)
+        #expect(outcome(MissInput(activated: app, previousFrontmost: "zed", now: 100, lastQuitOrHide: ("zed", 99.8))) == nil)
+        #expect(switchOutcome(MissInput(activated: app, previousFrontmost: "zed", now: 100), bindings: all, ownBundleID: app) == nil)
+    }
+    #expect(outcome(MissInput(activated: "", previousFrontmost: "zed", now: 100)) == nil)
+}
+
+func method(_ app: String, _ press: KeyPress, at: Double) -> Method {
+    switchMethod(MissInput(activated: app, previousFrontmost: "zed", now: 100, lastPress: (press, at)))
+}
+
+@Test func thisAppsHotkeyWithinGraceIsTheMethod() {
+    #expect(method("slack", .bound(slackB), at: 99.9) == .hotkey)
+    #expect(method("slack", .bound(slackB), at: 97.1) == .hotkey)   // cold launch
+    #expect(method("slack", .bound(slackB), at: 96.9) == .other)
+}
+@Test func anotherAppsHotkeyIsNotTheMethod() {
+    #expect(method("slack", .bound(loomB), at: 99.9) == .other)
+    #expect(method("finder", .bound(slackB), at: 99.9) == .other)
+}
+@Test func commandTabJustBeforeIsTheMethod() {
+    #expect(method("finder", .commandTab, at: 99.5) == .commandTab)
+    #expect(method("slack", .commandTab, at: 99.5) == .commandTab)
+    #expect(method("slack", .commandTab, at: 98.5) == .other)
+}
+@Test func unboundKeyNoPressOrALaterPressIsOther() {
+    #expect(method("slack", .unbound, at: 99.9) == .other)
+    #expect(switchMethod(MissInput(activated: "slack", previousFrontmost: "zed", now: 100)) == .other)
+    #expect(method("slack", .bound(slackB), at: 100.1) == .other)   // pressed after the app came forward
+    #expect(method("slack", .commandTab, at: 100.1) == .other)
+}

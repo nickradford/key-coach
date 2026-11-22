@@ -26,8 +26,9 @@ import IOKit.hid
 }
 
 /// Watches the physical hyper key on every keyboard through the raw HID device, listen-only.
-/// Sees only the keys that can be hyper (Caps Lock, F18 which Tinycast remaps it to, and the right-hand
-/// modifiers); every other key is dropped before anything else happens.
+/// Tracks the keys that can be hyper (Caps Lock, F18 which Tinycast remaps it to, and the right-hand
+/// modifiers). Any other key-down is kept only as a `KeyPress`, and only while a binding's modifiers
+/// are held or for Command-Tab; every other key is dropped before anything is stored.
 /// Needs Input Monitoring, which onboarding asks for; keeps trying to start until it is granted.
 @MainActor
 final class HyperKeyListener {
@@ -37,6 +38,9 @@ final class HyperKeyListener {
     /// When the hyper key last went down (system uptime). Kept after release, so a press between two samples still counts.
     private(set) var pressedAt: TimeInterval?
     private(set) var hyperKey: HyperKey = .capsLock
+    /// The latest key press kept, with its time (system uptime). Never ordinary typing.
+    private(set) var lastPress: (press: KeyPress, at: TimeInterval)?
+    private var bindings: [Binding] = []
     /// Called with any hyper-candidate key pressed down, while onboarding asks the user to press theirs.
     var capture: (@MainActor (HyperKey) -> Void)?
     private var manager: IOHIDManager?
@@ -50,16 +54,18 @@ final class HyperKeyListener {
         _ = shared.open()
     }
 
-    /// Starts listening when permitted. Once a second, re-reads the hyper key and retries until permitted.
+    /// Starts listening when permitted. Once a second, re-reads the hyper key and bindings, and retries until permitted.
     func start() {
-        refreshHyperKey()
-        _ = open()
+        refresh()
         timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
-            MainActor.assumeIsolated {
-                HyperKeyListener.shared.refreshHyperKey()
-                _ = HyperKeyListener.shared.open()
-            }
+            MainActor.assumeIsolated { HyperKeyListener.shared.refresh() }
         }
+    }
+
+    private func refresh() {
+        refreshHyperKey()
+        bindings = parseBindings(loadTinycastPrefs())
+        _ = open()
     }
 
     func refreshHyperKey() {
@@ -73,6 +79,11 @@ final class HyperKeyListener {
         guard key == hyperKey else { return }
         isDown = down
         if down { pressedAt = time }
+    }
+
+    private func handleKeyDown(_ keyCode: Int, at time: TimeInterval) {
+        guard let press = classifyKey(keyCode: keyCode, held: heldModifiers(), bindings: bindings) else { return }
+        lastPress = (press, time)
     }
 
     /// An IOHIDValue timestamp in seconds of system uptime: both count mach absolute time.
@@ -93,11 +104,17 @@ final class HyperKeyListener {
             kIOHIDElementUsagePageKey: kHIDPage_KeyboardOrKeypad,
         ] as CFDictionary)
         IOHIDManagerRegisterInputValueCallback(manager, { _, _, _, value in
-            guard let key = HyperKey(hidUsage: IOHIDElementGetUsage(IOHIDValueGetElement(value))) else { return }
+            let usage = IOHIDElementGetUsage(IOHIDValueGetElement(value))
             let down = IOHIDValueGetIntegerValue(value) != 0
             // The key's own time, not this callback's: the main thread may handle it after a later app switch.
             let time = HyperKeyListener.uptime(value)
-            MainActor.assumeIsolated { HyperKeyListener.shared.handle(key, down: down, at: time) }  // scheduled on the main run loop below
+            MainActor.assumeIsolated {  // scheduled on the main run loop below
+                if let key = HyperKey(hidUsage: usage) {
+                    HyperKeyListener.shared.handle(key, down: down, at: time)
+                } else if down, let keyCode = carbonKeyCode(hidUsage: usage) {
+                    HyperKeyListener.shared.handleKeyDown(keyCode, at: time)
+                }
+            }
         }, nil)
         IOHIDManagerScheduleWithRunLoop(manager, CFRunLoopGetMain(), CFRunLoopMode.commonModes.rawValue)
         guard IOHIDManagerOpen(manager, IOOptionBits(kIOHIDOptionsTypeNone)) == kIOReturnSuccess else {

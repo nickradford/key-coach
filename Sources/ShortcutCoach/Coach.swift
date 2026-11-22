@@ -15,6 +15,7 @@ final class Coach: NSObject {
     private var previousFrontmost = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
     private var tracker = HoldTracker()
     private var guideVisible = false
+    private var history = HistoryFile()
 
     func start() {
         let center = NSWorkspace.shared.notificationCenter
@@ -52,6 +53,7 @@ final class Coach: NSObject {
         let id = app.bundleIdentifier ?? ""
         let bindings = parseBindings(loadTinycastPrefs())
         let input = MissInput(activated: id, previousFrontmost: previousFrontmost, now: now)
+        let at = Date.now
         if bindings.contains(where: { $0.bundleID == id }) { tracker.boundAppActivated(now: now) }
         // A lock screen, password prompt or other non-regular app taking focus is not a switch:
         // coming back from it to the same app must not count as a miss.
@@ -65,8 +67,13 @@ final class Coach: NSObject {
             var input = input
             input.lastHeld = lastHeld
             input.lastQuitOrHide = lastQuitOrHide
-            if let binding = missedBinding(input, bindings: bindings, ownBundleID: Bundle.main.bundleIdentifier) {
+            input.lastPress = HyperKeyListener.shared.lastPress
+            let ownID = Bundle.main.bundleIdentifier
+            if let binding = missedBinding(input, bindings: bindings, ownBundleID: ownID) {
                 onMiss(binding, app)
+            }
+            if app.activationPolicy == .regular, let outcome = switchOutcome(input, bindings: bindings, ownBundleID: ownID) {
+                history.append(SwitchRecord(bundleID: id, outcome: outcome, method: switchMethod(input), at: at))
             }
         }
     }
