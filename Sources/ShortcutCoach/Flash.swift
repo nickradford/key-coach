@@ -13,9 +13,23 @@ final class Flash {
 
     func show(_ binding: Binding, app: NSRunningApplication) {
         guard let screen = screen(for: app) else { return }
+        show(binding, icon: app.icon, name: app.localizedName ?? binding.bundleID, on: screen)
+    }
+
+    /// A sample flash for `binding`, as if its app had just been brought forward the long way.
+    func demo(_ binding: Binding) {
+        guard let screen = NSScreen.main ?? pointerScreen() else { return }
+        let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: binding.bundleID)
+        let icon = url.map { NSWorkspace.shared.icon(forFile: $0.path) }
+        var name = url.map { FileManager.default.displayName(atPath: $0.path) } ?? binding.bundleID
+        if name.hasSuffix(".app") { name.removeLast(4) }  // when Finder is set to show extensions
+        show(binding, icon: icon, name: name, on: screen)
+    }
+
+    func show(_ binding: Binding, icon: NSImage?, name: String, on screen: NSScreen) {
         generation += 1
         let mine = generation
-        let (row, size) = content(binding, app: app, scale: screen.backingScaleFactor)
+        let (row, size) = content(binding, icon: icon, name: name, scale: screen.backingScaleFactor)
         island.show(row, size: size, sidePadding: 16, on: screen)
         Task {
             try? await Task.sleep(for: .seconds(Self.hold))
@@ -24,7 +38,7 @@ final class Flash {
     }
 
     /// Icon, app name, then one keycap per modifier glyph ("⇪", or "⇧" and "⌘") and the key.
-    private func content(_ binding: Binding, app: NSRunningApplication, scale: CGFloat) -> (CALayer, CGSize) {
+    private func content(_ binding: Binding, icon: NSImage?, name: String, scale: CGFloat) -> (CALayer, CGSize) {
         let row = CALayer()
         var x: CGFloat = 0
         func place(_ layer: CALayer, gap: CGFloat) {
@@ -32,9 +46,10 @@ final class Flash {
             row.addSublayer(layer)
             x += layer.frame.width + gap
         }
-        place(iconLayer(app.icon, side: 26, scale: scale), gap: 8)
-        place(textLayer(app.localizedName ?? binding.bundleID, weight: .medium, scale: scale, maxWidth: 180), gap: 12)
-        let glyphs = binding.display.prefix(while: { $0 != " " }).map(String.init)
+        place(iconLayer(icon, side: 26, scale: scale), gap: 8)
+        place(textLayer(name, weight: .medium, scale: scale, maxWidth: 180), gap: 12)
+        let display = binding.display(hyper: HyperKeyListener.shared.hyperKey)
+        let glyphs = display.prefix(while: { $0 != " " }).map(String.init)
         for label in glyphs + [binding.keyName] { place(keycapLayer(label, scale: scale), gap: 4) }
         return (row, CGSize(width: x - 4, height: Self.height))
     }

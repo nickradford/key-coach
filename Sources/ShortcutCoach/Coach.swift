@@ -4,8 +4,8 @@ import CoachCore
 /// Watches app switches and the modifier keys, and reports misses and when the hold guide should show.
 @MainActor
 final class Coach: NSObject {
-    var onMiss: (Binding, NSRunningApplication) -> Void = { binding, app in
-        print("MISS \(app.localizedName ?? binding.bundleID) \(binding.display)")
+    var onMiss: @MainActor (Binding, NSRunningApplication) -> Void = { binding, app in
+        print("MISS \(app.localizedName ?? binding.bundleID) \(binding.display(hyper: HyperKeyListener.shared.hyperKey))")
     }
     var onGuide: (Bool) -> Void = { print("GUIDE \($0)") }
 

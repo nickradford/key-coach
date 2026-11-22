@@ -17,11 +17,11 @@ let loom  = #"{"combo":{"_0":{"carbonKeyCode":37,"carbonModifiers":768}}}"#
     ])
 }
 @Test func displayStrings() {
-    #expect(Binding(bundleID: "x", keyCode: 1, modifiers: 6912).display == "⇪ S")
-    #expect(Binding(bundleID: "x", keyCode: 37, modifiers: 768).display == "⇧⌘ L")
-    #expect(Binding(bundleID: "x", keyCode: 123, modifiers: 2304).display == "⌥⌘ ←")
-    #expect(Binding(bundleID: "x", keyCode: 49, modifiers: 256).display == "⌘ Space")
-    #expect(Binding(bundleID: "x", keyCode: 200, modifiers: 6912).display == "⇪ key 200")
+    #expect(Binding(bundleID: "x", keyCode: 1, modifiers: 6912).display(hyper: .capsLock) == "⇪ S")
+    #expect(Binding(bundleID: "x", keyCode: 37, modifiers: 768).display(hyper: .capsLock) == "⇧⌘ L")
+    #expect(Binding(bundleID: "x", keyCode: 123, modifiers: 2304).display(hyper: .capsLock) == "⌥⌘ ←")
+    #expect(Binding(bundleID: "x", keyCode: 49, modifiers: 256).display(hyper: .capsLock) == "⌘ Space")
+    #expect(Binding(bundleID: "x", keyCode: 200, modifiers: 6912).display(hyper: .capsLock) == "⇪ key 200")
 }
 @Test func malformedValuesAreSkipped() {
     #expect(parseBindings(["hotkey.app.a": "not json", "hotkey.app.b": 42,
