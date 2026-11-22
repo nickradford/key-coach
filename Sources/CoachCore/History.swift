@@ -17,7 +17,8 @@ public struct SwitchRecord: Codable, Equatable, Sendable {
 }
 
 /// `unbound`: the app has no hotkey, so there was nothing to hit or miss.
-public enum Outcome: String, Codable, Sendable { case hit, miss, unbound }
+/// `system`: no key or click of the user's brought the app forward (a link, a notification), so neither.
+public enum Outcome: String, Codable, Sendable { case hit, miss, unbound, system }
 
 public enum Method: String, Codable, Sendable { case hotkey, commandTab, other }
 
