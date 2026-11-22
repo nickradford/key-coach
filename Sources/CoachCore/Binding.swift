@@ -19,8 +19,9 @@ public struct Binding: Equatable, Sendable {
 
     public var keyName: String { keyNames[keyCode] ?? "key \(keyCode)" }
 
-    public var display: String {
-        if isHyper { return "⇪ \(keyName)" }
+    /// Modifier glyphs, a space, then the key; hyper shows as the hyper key's glyph.
+    public func display(hyper: HyperKey) -> String {
+        if isHyper { return "\(hyper.glyph) \(keyName)" }
         let glyphs = [(controlKey, "⌃"), (optionKey, "⌥"), (shiftKey, "⇧"), (cmdKey, "⌘")]
             .filter { modifiers & $0.0 != 0 }.map(\.1).joined()
         return "\(glyphs) \(keyName)"

@@ -10,7 +10,7 @@ you set up in Tinycast.
 - **Miss flash.** Bring a bound app forward any other way (a click, the Dock, Cmd+Tab, a
   launcher) and a black island drops from the notch for about 1.5 s, showing the app and the
   hotkey you could have used.
-- **Hold guide.** Hold Caps Lock (Tinycast's hyper key) for 0.7 s and an island lists every
+- **Hold guide.** Hold the hyper key (Caps Lock unless you chose another) for 0.7 s and an island lists every
   hyper binding, with a letter badge on each bound app's visible window. Release to hide it.
 
 Bindings are read from Tinycast's preferences each time they are needed, so changes in
@@ -35,21 +35,30 @@ LaunchAgent (`~/Library/LaunchAgents/local.shortcut-coach.plist`) so it starts n
 every login. macOS shows a one-time "background item added" notice. Run it again after
 changing the code.
 
-The app lives in the menu bar (keyboard icon) with a single Quit item. Quitting stops it
-until the next login.
+On first launch a short onboarding window walks through Tinycast, the permission, the hyper
+key and a try-out. The app then lives in the menu bar (keyboard icon): **Show Onboarding…**
+opens that window again, and Quit stops the app until the next login.
 
 ## Permission
 
-On first launch the app asks for **Input Monitoring** so it can see the physical Caps Lock
-key. It listens to Caps Lock only and ignores every other key; nothing you type is read or
-stored. Turn it on in System Settings > Privacy & Security > Input Monitoring. The app
-picks it up within a few seconds, with no restart.
+The onboarding's third step asks for **Input Monitoring** so the app can see the physical
+hyper key; nothing is asked at launch. It listens only to the keys that can be hyper (Caps
+Lock, F18 and the right-hand modifiers) and ignores every other key; nothing you type is read
+or stored. Turn it on in System Settings > Privacy & Security > Input Monitoring, or reopen
+the step with **Show Onboarding…**. The app picks it up within a second, with no restart.
 
-Without the permission it still works, but moving the mouse while holding Caps Lock reads
+Without the permission it still works, but moving the mouse while holding the hyper key reads
 as letting go, because Tinycast's hyper is posted as modifier flags and a real mouse move
 resets them.
 
 The app is ad-hoc signed, so macOS may ask you to approve it again after each reinstall.
+
+## Hyper key
+
+The hyper key is, in order: Tinycast's `hyperKeyPhysicalKey` setting when it names a key the
+app knows, else the key chosen in onboarding, else Caps Lock. The choices are Caps Lock, Right
+Command, Right Option, Right Control and Right Shift. Hyper itself is always Control + Option +
+Shift + Command; only the physical key and its glyph in the island change.
 
 ## What counts as a miss
 

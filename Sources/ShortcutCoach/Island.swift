@@ -1,5 +1,4 @@
 import AppKit
-import CoreImage
 
 /// A black island that grows out of the notch (or Alcove's fake notch), in the style of Alcove:
 /// a soft spring, inverted top corners, and content that scales and sharpens into place.
@@ -69,7 +68,7 @@ final class Island {
         panel.orderFrontRegardless()
         if NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
             panel.alphaValue = 0
-            NSAnimationContext.runAnimationGroup { $0.duration = 0.2; panel.animator().alphaValue = 1 }
+            NSAnimationContext.runAnimationGroup { $0.duration = Motion.reduceMotionFade; panel.animator().alphaValue = 1 }
             return
         }
         spring(shape, "path", from: start, to: end)
@@ -88,7 +87,7 @@ final class Island {
             panel.orderOut(nil)
         }
         if NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
-            NSAnimationContext.runAnimationGroup({ $0.duration = exitDuration; panel.animator().alphaValue = 0 },
+            NSAnimationContext.runAnimationGroup({ $0.duration = Motion.exitDuration; panel.animator().alphaValue = 0 },
                                                  completionHandler: done)
             return
         }
@@ -131,61 +130,6 @@ final class Island {
                       control1: CGPoint(x: start.x + (via.x - start.x) * k, y: start.y + (via.y - start.y) * k),
                       control2: CGPoint(x: end.x + (via.x - end.x) * k, y: end.y + (via.y - end.y) * k))
     }
-}
-
-// MARK: Motion shared by the island and the window badges
-
-private let enterScale = 0.82
-private let enterBlur = 10.0
-let exitDuration = 0.26
-
-/// Gives `layer` a blur named "blur" at radius 0, so its radius can be animated.
-/// The hosting view needs `layerUsesCoreImageFilters`.
-@MainActor func addBlurFilter(_ layer: CALayer) {
-    let blur = CIFilter(name: "CIGaussianBlur")!
-    blur.name = "blur"
-    blur.setValue(0, forKey: kCIInputRadiusKey)
-    layer.filters = [blur]
-}
-
-/// Entrance: scales up, sharpens from a blur and fades in, on the island's spring.
-@MainActor func materialize(_ layer: CALayer) {
-    spring(layer, "transform.scale", from: enterScale, to: 1.0)
-    ease(layer, "filters.blur.inputRadius", from: enterBlur, to: 0.0, duration: 0.4, out: true)
-    ease(layer, "opacity", from: 0.0, to: 1.0, duration: 0.3, out: true)
-}
-
-/// Exit: the entrance in reverse, quicker. The layer stays invisible afterwards.
-@MainActor func dematerialize(_ layer: CALayer) {
-    let shown = layer.presentation()
-    retract(layer, "transform.scale", from: shown?.value(forKeyPath: "transform.scale") ?? 1.0, to: enterScale)
-    retract(layer, "filters.blur.inputRadius", from: 0.0, to: enterBlur * 0.8)
-    retract(layer, "opacity", from: shown?.opacity ?? 1, to: 0.0)
-}
-
-@MainActor func spring(_ layer: CALayer, _ keyPath: String, from: Any, to: Any) {
-    let animation = CASpringAnimation(perceptualDuration: 0.5, bounce: 0.2)
-    animation.keyPath = keyPath
-    animation.duration = animation.settlingDuration
-    animation.fromValue = from
-    animation.toValue = to
-    layer.add(animation, forKey: keyPath)
-}
-
-@MainActor func ease(_ layer: CALayer, _ keyPath: String, from: Any, to: Any, duration: Double, out: Bool) {
-    let animation = CABasicAnimation(keyPath: keyPath)
-    animation.fromValue = from
-    animation.toValue = to
-    animation.duration = duration
-    animation.timingFunction = out ? CAMediaTimingFunction(controlPoints: 0.16, 1, 0.3, 1)
-                                   : CAMediaTimingFunction(controlPoints: 0.5, 0, 0.9, 0.5)
-    layer.add(animation, forKey: keyPath)
-}
-
-/// Animates to `to` and keeps it there.
-@MainActor func retract(_ layer: CALayer, _ keyPath: String, from: Any?, to: Any) {
-    layer.setValue(to, forKeyPath: keyPath)
-    ease(layer, keyPath, from: from as Any, to: to, duration: exitDuration, out: false)
 }
 
 // MARK: Content building blocks
