@@ -40,20 +40,21 @@ public func missedBinding(_ input: MissInput, bindings: [Binding], ownBundleID: 
 public struct HoldTracker {
     public static let delay = 0.7
     private var heldSince: TimeInterval?
-    private var blocked = false
+    private var activatedAt: TimeInterval?
 
     public init() {}
 
-    public mutating func update(hyperHeld: Bool, now: TimeInterval) -> Bool {
+    /// `pressedAt`: when the hyper key went down, if known. It starts the hold even when no sample saw the key up.
+    public mutating func update(hyperHeld: Bool, pressedAt: TimeInterval? = nil, now: TimeInterval) -> Bool {
         guard hyperHeld else {
             heldSince = nil
-            blocked = false
             return false
         }
-        let since = heldSince ?? now
+        let since = pressedAt ?? heldSince ?? now
         heldSince = since
-        return !blocked && now - since >= Self.delay
+        if let activatedAt, activatedAt >= since { return false }
+        return now - since >= Self.delay
     }
 
-    public mutating func boundAppActivated() { blocked = true }
+    public mutating func boundAppActivated(now: TimeInterval) { activatedAt = now }
 }

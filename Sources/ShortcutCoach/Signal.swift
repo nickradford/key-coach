@@ -34,6 +34,8 @@ final class HyperKeyListener {
     static let shared = HyperKeyListener()
 
     private(set) var isDown = false
+    /// When the hyper key last went down (system uptime). Kept after release, so a press between two samples still counts.
+    private(set) var pressedAt: TimeInterval?
     private(set) var hyperKey: HyperKey = .capsLock
     /// Called with any hyper-candidate key pressed down, while onboarding asks the user to press theirs.
     var capture: (@MainActor (HyperKey) -> Void)?
@@ -66,9 +68,18 @@ final class HyperKeyListener {
         hyperKey = key
     }
 
-    private func handle(_ key: HyperKey, down: Bool) {
+    private func handle(_ key: HyperKey, down: Bool, at time: TimeInterval) {
         if down { capture?(key) }  // first, so a newly chosen key lights on this very press
-        if key == hyperKey { isDown = down }
+        guard key == hyperKey else { return }
+        isDown = down
+        if down { pressedAt = time }
+    }
+
+    /// An IOHIDValue timestamp in seconds of system uptime: both count mach absolute time.
+    private static func uptime(_ value: IOHIDValue) -> TimeInterval {
+        var timebase = mach_timebase_info_data_t()
+        mach_timebase_info(&timebase)
+        return Double(IOHIDValueGetTimeStamp(value)) * Double(timebase.numer) / Double(timebase.denom) / 1e9
     }
 
     /// Opens the keyboard devices; false while Input Monitoring is not granted.
@@ -84,7 +95,9 @@ final class HyperKeyListener {
         IOHIDManagerRegisterInputValueCallback(manager, { _, _, _, value in
             guard let key = HyperKey(hidUsage: IOHIDElementGetUsage(IOHIDValueGetElement(value))) else { return }
             let down = IOHIDValueGetIntegerValue(value) != 0
-            MainActor.assumeIsolated { HyperKeyListener.shared.handle(key, down: down) }  // scheduled on the main run loop below
+            // The key's own time, not this callback's: the main thread may handle it after a later app switch.
+            let time = HyperKeyListener.uptime(value)
+            MainActor.assumeIsolated { HyperKeyListener.shared.handle(key, down: down, at: time) }  // scheduled on the main run loop below
         }, nil)
         IOHIDManagerScheduleWithRunLoop(manager, CFRunLoopGetMain(), CFRunLoopMode.commonModes.rawValue)
         guard IOHIDManagerOpen(manager, IOOptionBits(kIOHIDOptionsTypeNone)) == kIOReturnSuccess else {
