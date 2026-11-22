@@ -1,0 +1,6 @@
+---
+import type { App } from '../lib/apps';
+interface Props { app: App; size: number }
+const { app, size } = Astro.props;
+---
+<span class="tile" style={`--c:${app.color};--s:${size}`}><svg viewBox="0 0 24 24" aria-hidden="true"><path d={app.glyph} /></svg></span>

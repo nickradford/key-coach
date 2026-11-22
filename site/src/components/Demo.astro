@@ -1,0 +1,81 @@
+---
+import { APPS } from '../lib/apps';
+import FlashRow from './FlashRow.astro';
+import GuideStrip from './GuideStrip.astro';
+import Island from './Island.astro';
+import Tile from './Tile.astro';
+
+/** Where each app's window sits on the fake desktop, in percent: x, y, width, height. */
+const PLACES: Record<string, [number, number, number, number]> = {
+  browser: [3, 6, 40, 52],
+  editor: [57, 5, 40, 50],
+  messages: [31, 14, 34, 46],
+  notes: [72, 50, 24, 34],
+  calendar: [5, 54, 28, 32],
+  terminal: [37, 56, 30, 28],
+};
+
+/** Placeholder content per window: each <b> is a bar or block, styled per app in site.css. */
+const SKELETONS: Record<string, string> = {
+  browser: '<b class="url"></b><b class="block"></b><b style="width:72%"></b><b style="width:54%"></b>',
+  calendar: '<b style="width:40%"></b>' + '<span class="grid">' + Array.from({ length: 21 }, (_, i) => `<b${i === 9 || i === 12 ? ' class="on"' : ''}></b>`).join('') + '</span>',
+  editor: [[0, 30], [1, 44], [1, 62], [2, 38], [1, 50], [0, 24], [1, 58], [1, 40]]
+    .map(([indent, w]) => `<b style="width:${w}%;margin-left:${indent * 8}%"></b>`).join(''),
+  messages: '<b class="in" style="width:52%"></b><b class="out" style="width:40%"></b><b class="in" style="width:64%"></b><b class="out" style="width:30%"></b>',
+  notes: '<b class="title"></b><b></b><b style="width:84%"></b><b style="width:66%"></b>',
+  terminal: '<b style="width:58%"></b><b style="width:36%"></b><b style="width:70%"></b><b class="cursor"></b>',
+};
+---
+<div class="demo" data-demo tabindex="-1">
+  <div class="screen">
+    <div class="menubar">
+      <span class="menus"><b class="menu-app">Editor</b><span>File</span><span>Edit</span><span class="wide">View</span><span class="wide">Window</span></span>
+      <span class="status">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6.5" width="18" height="11" rx="2" /><path d="M7 10h.01M10 10h.01M13 10h.01M16 10h.01M8 14h8" /></svg>
+        <span>9:41</span>
+      </span>
+    </div>
+    <div class="desktop">
+      {APPS.map((app) => {
+        const [x, y, w, h] = PLACES[app.id];
+        return (
+          <div class="win" data-app={app.id} aria-hidden="true" style={`--x:${x}%;--y:${y}%;--w:${w}%;--h:${h}%;--c:${app.color}`}>
+            <div class="win-bar"><i></i><i></i><i></i><span>{app.name}</span></div>
+            <div class={`win-body ${app.id}`} set:html={SKELETONS[app.id]} />
+          </div>
+        );
+      })}
+      <div class="dock" role="group" aria-label="Dock">
+        {APPS.map((app) => (
+          <button class="dock-item" type="button" data-app={app.id} data-name={app.name} data-stage="learning">
+            <Tile app={app} size={44} />
+            <span class="pips" aria-hidden="true"><i></i><i></i><i></i></span>
+          </button>
+        ))}
+      </div>
+    </div>
+    <div class="notch"></div>
+    <Island class="flash" />
+    <Island class="guide" />
+  </div>
+
+  <div class="demo-bar">
+    <button class="hyper-btn" type="button" aria-label="Hyper key: press and hold, then pick an app">⇪</button>
+    <p class="hint">
+      <span class="when-idle">Click the screen to use the keys.</span>
+      <span class="when-keys">Hold <kbd>⌥</kbd> Option, standing in for <kbd>⇪</kbd>, then press a letter.</span>
+      <span class="when-touch">Hold <kbd>⇪</kbd> with one finger and tap an app with another.</span>
+    </p>
+    <button class="reset" type="button">Reset</button>
+  </div>
+  <p class="readout" aria-live="polite">Click an app to switch the long way.</p>
+
+  {APPS.map((app) => <template data-flash={app.id}><FlashRow app={app} /></template>)}
+  <template data-guide><GuideStrip /></template>
+</div>
+
+<script>
+  import { initDemo } from '../scripts/demo';
+  const demo = document.querySelector<HTMLElement>('[data-demo]');
+  if (demo) initDemo(demo);
+</script>
