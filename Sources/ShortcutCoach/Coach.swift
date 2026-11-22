@@ -1,7 +1,7 @@
 import AppKit
 import CoachCore
 
-/// Watches app switches and the modifier keys, and reports misses and when the hold guide should show.
+/// Watches app switches, the modifier keys and which app each click lands on, and reports misses and when the hold guide should show.
 @MainActor
 final class Coach: NSObject {
     var onMiss: @MainActor (Binding, NSRunningApplication) -> Void = { binding, app in
@@ -11,6 +11,8 @@ final class Coach: NSObject {
 
     private var lastHeld: [Int: TimeInterval] = [:]
     private var lastQuitOrHide: (bundleID: String, at: TimeInterval)?
+    private var lastClick: (bundleID: String?, at: TimeInterval)?
+    private var clickMonitor: Any?
     // Starts as whatever is frontmost, so launching the coach never flashes.
     private var previousFrontmost = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
     private var tracker = HoldTracker()
@@ -24,6 +26,11 @@ final class Coach: NSObject {
         center.addObserver(self, selector: #selector(appGone), name: NSWorkspace.didHideApplicationNotification, object: nil)
         let timer = Timer(timeInterval: 1.0 / 30, target: self, selector: #selector(poll), userInfo: nil, repeats: true)
         RunLoop.main.add(timer, forMode: .common)
+        // Mouse events need no permission to watch, unlike key events.
+        clickMonitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDown) { [weak self] event in
+            let click = (bundleID: windowOwner(of: event), at: event.timestamp)  // the event's own time, on the uptime clock
+            MainActor.assumeIsolated { self?.lastClick = click }  // AppKit calls global monitors on the main thread
+        }
     }
 
     private var now: TimeInterval { ProcessInfo.processInfo.systemUptime }
@@ -61,13 +68,17 @@ final class Coach: NSObject {
         // macOS reports a quit or hide about 10 ms after the next app's activation, so decide a moment later.
         Task {
             try? await Task.sleep(for: .milliseconds(150))
-            // Read lastHeld now, so a key-down handled after the activation still counts.
-            // Tradeoff: a hyper press in these 150 ms also suppresses a real miss.
+            // Read the inputs now, so a key-down handled after the activation still counts.
+            // Tradeoffs: without Input Monitoring a hyper press in these 150 ms suppresses a real miss; with it,
+            // another hotkey pressed in these 150 ms replaces lastPress. Any key in them hides an earlier one.
             sampleModifiers()
             var input = input
             input.lastHeld = lastHeld
             input.lastQuitOrHide = lastQuitOrHide
             input.lastPress = HyperKeyListener.shared.lastPress
+            input.listening = HyperKeyListener.shared.isListening
+            input.lastKeyAt = lastKeyDownAt()
+            input.lastClick = lastClick
             let ownID = Bundle.main.bundleIdentifier
             if let binding = missedBinding(input, bindings: bindings, ownBundleID: ownID) {
                 onMiss(binding, app)

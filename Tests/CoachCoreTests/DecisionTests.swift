@@ -3,43 +3,44 @@ import Testing
 
 let slackB = Binding(bundleID: "slack", keyCode: 1, modifiers: 6912)
 let loomB  = Binding(bundleID: "loom", keyCode: 37, modifiers: 768)
-let all = [slackB, loomB]
+let notionB = Binding(bundleID: "notion", keyCode: 45, modifiers: 6912)
+let all = [slackB, loomB, notionB]
 func miss(_ i: MissInput) -> Binding? { missedBinding(i, bindings: all, ownBundleID: "coach") }
 
 @Test func boundAppWithoutHotkeyIsAMiss() {
-    #expect(miss(MissInput(activated: "slack", previousFrontmost: "zed", now: 100)) == slackB)
+    #expect(miss(MissInput(activated: "slack", previousFrontmost: "zed", now: 100, lastKeyAt: 99.9)) == slackB)
 }
 @Test func hyperHeldWithinGraceIsNotAMiss() {
-    #expect(miss(MissInput(activated: "slack", previousFrontmost: "zed", now: 100, lastHeld: [6912: 97.1])) == nil)
-    #expect(miss(MissInput(activated: "slack", previousFrontmost: "zed", now: 100, lastHeld: [6912: 100])) == nil)
-    #expect(miss(MissInput(activated: "slack", previousFrontmost: "zed", now: 100, lastHeld: [6912: 100.1])) == nil)  // key-down handled after the activation
-    #expect(miss(MissInput(activated: "slack", previousFrontmost: "zed", now: 100, lastHeld: [6912: 96.9])) == slackB)
+    #expect(miss(MissInput(activated: "slack", previousFrontmost: "zed", now: 100, lastHeld: [6912: 97.1], lastKeyAt: 99.9)) == nil)
+    #expect(miss(MissInput(activated: "slack", previousFrontmost: "zed", now: 100, lastHeld: [6912: 100], lastKeyAt: 99.9)) == nil)
+    #expect(miss(MissInput(activated: "slack", previousFrontmost: "zed", now: 100, lastHeld: [6912: 100.1], lastKeyAt: 99.9)) == nil)  // key-down handled after the activation
+    #expect(miss(MissInput(activated: "slack", previousFrontmost: "zed", now: 100, lastHeld: [6912: 96.9], lastKeyAt: 99.9)) == slackB)
 }
 @Test func eachBindingNeedsItsOwnModifiers() {
-    #expect(miss(MissInput(activated: "loom", previousFrontmost: "zed", now: 100, lastHeld: [6912: 99])) == loomB)
-    #expect(miss(MissInput(activated: "loom", previousFrontmost: "zed", now: 100, lastHeld: [768: 99])) == nil)
+    #expect(miss(MissInput(activated: "loom", previousFrontmost: "zed", now: 100, lastHeld: [6912: 99], lastKeyAt: 99.9)) == loomB)
+    #expect(miss(MissInput(activated: "loom", previousFrontmost: "zed", now: 100, lastHeld: [768: 99], lastKeyAt: 99.9)) == nil)
 }
 @Test func unboundAppIsNeverAMiss() {
-    #expect(miss(MissInput(activated: "finder", previousFrontmost: "zed", now: 100)) == nil)
+    #expect(miss(MissInput(activated: "finder", previousFrontmost: "zed", now: 100, lastKeyAt: 99.9)) == nil)
 }
 @Test func alreadyFrontmostIsNeverAMiss() {
-    #expect(miss(MissInput(activated: "slack", previousFrontmost: "slack", now: 100)) == nil)
+    #expect(miss(MissInput(activated: "slack", previousFrontmost: "slack", now: 100, lastKeyAt: 99.9)) == nil)
 }
 @Test func ownAppIsNeverAMiss() {
-    #expect(missedBinding(MissInput(activated: "slack", previousFrontmost: "zed", now: 100),
+    #expect(missedBinding(MissInput(activated: "slack", previousFrontmost: "zed", now: 100, lastKeyAt: 99.9),
                           bindings: all, ownBundleID: "slack") == nil)
 }
 @Test func emptyBundleIDIsNeverAMiss() {
-    #expect(miss(MissInput(activated: "", previousFrontmost: "zed", now: 100)) == nil)
+    #expect(miss(MissInput(activated: "", previousFrontmost: "zed", now: 100, lastKeyAt: 99.9)) == nil)
 }
 @Test func previousAppQuittingOrHidingSuppresses() {
-    #expect(miss(MissInput(activated: "slack", previousFrontmost: "zed", now: 100, lastQuitOrHide: ("zed", 99.6))) == nil)
-    #expect(miss(MissInput(activated: "slack", previousFrontmost: "zed", now: 100, lastQuitOrHide: ("zed", 99.4))) == slackB)
-    #expect(miss(MissInput(activated: "slack", previousFrontmost: "zed", now: 100, lastQuitOrHide: ("dia", 99.9))) == slackB)
+    #expect(miss(MissInput(activated: "slack", previousFrontmost: "zed", now: 100, lastQuitOrHide: ("zed", 99.6), lastKeyAt: 99.9)) == nil)
+    #expect(miss(MissInput(activated: "slack", previousFrontmost: "zed", now: 100, lastQuitOrHide: ("zed", 99.4), lastKeyAt: 99.9)) == slackB)
+    #expect(miss(MissInput(activated: "slack", previousFrontmost: "zed", now: 100, lastQuitOrHide: ("dia", 99.9), lastKeyAt: 99.9)) == slackB)
 }
 // macOS delivers the quit notification just after the activation, so the caller decides slightly late.
 @Test func quitReportedJustAfterActivationSuppresses() {
-    #expect(miss(MissInput(activated: "slack", previousFrontmost: "zed", now: 100, lastQuitOrHide: ("zed", 100.01))) == nil)
+    #expect(miss(MissInput(activated: "slack", previousFrontmost: "zed", now: 100, lastQuitOrHide: ("zed", 100.01), lastKeyAt: 99.9)) == nil)
 }
 
 @Test func guideOpensAfterDelayAndClosesOnRelease() {
@@ -92,20 +93,81 @@ func miss(_ i: MissInput) -> Binding? { missedBinding(i, bindings: all, ownBundl
 func outcome(_ i: MissInput) -> Outcome? { switchOutcome(i, bindings: all, ownBundleID: "coach") }
 
 @Test func switchToAnUnboundAppIsUnbound() {
-    #expect(outcome(MissInput(activated: "finder", previousFrontmost: "zed", now: 100)) == .unbound)
+    #expect(outcome(MissInput(activated: "finder", previousFrontmost: "zed", now: 100, lastKeyAt: 99.9)) == .unbound)
 }
 @Test func switchToABoundAppIsAMissWithoutItsModifiersAndAHitWithThem() {
-    #expect(outcome(MissInput(activated: "slack", previousFrontmost: "zed", now: 100)) == .miss)
-    #expect(outcome(MissInput(activated: "slack", previousFrontmost: "zed", now: 100, lastHeld: [6912: 99])) == .hit)
-    #expect(outcome(MissInput(activated: "loom", previousFrontmost: "zed", now: 100, lastHeld: [6912: 99])) == .miss)
+    #expect(outcome(MissInput(activated: "slack", previousFrontmost: "zed", now: 100, lastKeyAt: 99.9)) == .miss)
+    #expect(outcome(MissInput(activated: "slack", previousFrontmost: "zed", now: 100, lastHeld: [6912: 99], lastKeyAt: 99.9)) == .hit)
+    #expect(outcome(MissInput(activated: "loom", previousFrontmost: "zed", now: 100, lastHeld: [6912: 99], lastKeyAt: 99.9)) == .miss)
 }
 @Test func activationsThatAreNotSwitchesHaveNoOutcome() {
     for app in ["slack", "finder"] {
-        #expect(outcome(MissInput(activated: app, previousFrontmost: app, now: 100)) == nil)
-        #expect(outcome(MissInput(activated: app, previousFrontmost: "zed", now: 100, lastQuitOrHide: ("zed", 99.8))) == nil)
-        #expect(switchOutcome(MissInput(activated: app, previousFrontmost: "zed", now: 100), bindings: all, ownBundleID: app) == nil)
+        #expect(outcome(MissInput(activated: app, previousFrontmost: app, now: 100, lastKeyAt: 99.9)) == nil)
+        #expect(outcome(MissInput(activated: app, previousFrontmost: "zed", now: 100, lastQuitOrHide: ("zed", 99.8), lastKeyAt: 99.9)) == nil)
+        #expect(switchOutcome(MissInput(activated: app, previousFrontmost: "zed", now: 100, lastKeyAt: 99.9), bindings: all, ownBundleID: app) == nil)
     }
-    #expect(outcome(MissInput(activated: "", previousFrontmost: "zed", now: 100)) == nil)
+    #expect(outcome(MissInput(activated: "", previousFrontmost: "zed", now: 100, lastKeyAt: 99.9)) == nil)
+}
+
+// With Input Monitoring the listener sees which hotkey was pressed: only the app's own key is a hit.
+func exact(_ app: String, press: KeyPress, at: Double, click: (String?, Double)? = nil) -> MissInput {
+    MissInput(activated: app, previousFrontmost: "zed", now: 100, lastHeld: [6912: at],
+              lastPress: (press, at), listening: true, lastKeyAt: at, lastClick: click)
+}
+
+@Test func theAppsOwnHotkeyIsAHit() {
+    #expect(miss(exact("slack", press: .bound(slackB), at: 99.8)) == nil)
+    #expect(outcome(exact("slack", press: .bound(slackB), at: 99.8)) == .hit)
+    #expect(miss(exact("slack", press: .bound(slackB), at: 97.1)) == nil)   // cold launch
+}
+@Test func anotherHotkeyThenAClickIsAMiss() {
+    #expect(miss(exact("slack", press: .bound(notionB), at: 99.5, click: ("slack", 99.8))) == slackB)
+    #expect(outcome(exact("slack", press: .bound(notionB), at: 99.5, click: ("slack", 99.8))) == .miss)
+}
+@Test func theAppsHotkeyTooEarlyOrAfterTheSwitchIsAMiss() {
+    #expect(miss(exact("slack", press: .bound(slackB), at: 96.9, click: ("slack", 99.8))) == slackB)
+    #expect(miss(exact("slack", press: .bound(slackB), at: 100.1, click: ("slack", 99.8))) == slackB)
+}
+@Test func withoutInputMonitoringAnyHeldModifiersStillCount() {
+    var input = exact("slack", press: .bound(notionB), at: 99.5)
+    input.listening = false
+    #expect(miss(input) == nil)
+    #expect(outcome(input) == .hit)
+}
+// A key typed in the 150 ms before the decision hides the hotkey's key-down from lastKeyAt.
+@Test func aHotkeySwitchStaysAHitWhenTheKeyReadingMissesIt() {
+    var input = exact("slack", press: .bound(slackB), at: 99.8)
+    input.lastKeyAt = 100.05
+    #expect(outcome(input) == .hit)
+}
+
+// Whether the user made the switch: a key, or a click on the Dock, Stage Manager or the app, just before.
+func chose(_ app: String, key: Double? = nil, click: (String?, Double)? = nil) -> MissInput {
+    MissInput(activated: app, previousFrontmost: "zed", now: 100, lastKeyAt: key, lastClick: click)
+}
+
+@Test func aLinkOrNotificationWithNoKeyIsTheSystems() {
+    for target in ["zed", "com.apple.notificationcenterui"] {
+        #expect(miss(chose("slack", key: 90, click: (target, 99.8))) == nil)
+        #expect(outcome(chose("slack", key: 90, click: (target, 99.8))) == .system)
+    }
+    #expect(outcome(chose("slack")) == .system)
+    #expect(outcome(chose("finder")) == .system)
+}
+@Test func aClickOnTheDockStageManagerOrTheAppIsTheUsers() {
+    for target in ["com.apple.dock", "com.apple.WindowManager", "slack"] {
+        #expect(miss(chose("slack", click: (target, 99.5))) == slackB)
+    }
+    #expect(outcome(chose("finder", click: ("com.apple.dock", 99.5))) == .unbound)
+}
+@Test func anyKeyWithinGraceIsTheUsers() {
+    #expect(miss(chose("slack", key: 97.1)) == slackB)
+    #expect(miss(chose("slack", key: 100)) == slackB)
+}
+@Test func inputOutsideGraceOrAfterTheSwitchIsNotTheUsers() {
+    #expect(outcome(chose("slack", key: 96.9, click: ("com.apple.dock", 96.9))) == .system)
+    #expect(outcome(chose("slack", key: 100.1, click: ("slack", 100.1))) == .system)
+    #expect(outcome(chose("slack", click: (nil, 99.8))) == .system)   // the click's window had no app
 }
 
 func method(_ app: String, _ press: KeyPress, at: Double) -> Method {

@@ -14,9 +14,10 @@ Everything goes through one helper, run from the repo root:
 | Command | Does |
 | --- | --- |
 | `launch [--onboarding]` | `swift build`, compiles `scripts/probe.swift`, starts `.build/debug/ShortcutCoach` in the background, waits until ready. `--onboarding` shows the onboarding panel; default suppresses it. |
-| `doctor` | Read-only health check (below). Exit 0 only when every line is `ok`. |
+| `doctor` | Read-only health check (below). Exit 0 only when every line is `ok`; the `info` line does not count. |
 | `windows` | The instance's windows: `layer=… onscreen=… x y w h` (CG coordinates, top-left origin, points). |
-| `miss <bundle-id>` | Brings that app forward with `open -b`, captures window lists and the notch strip, gives focus back. Prints the evidence dir. |
+| `dock <bundle-id>` | Clicks that app's Dock icon with real mouse events, captures window lists, the notch strip and the switch the app recorded, gives focus back. Prints the evidence dir. |
+| `open <bundle-id>` | Same, but brings the app forward with `open -b`, a switch with no click or key (like a link), after waiting for the keyboard to rest. |
 | `guide [seconds]` | Holds hyper (posted modifier flags) for `seconds` (default 3), captures the guide. Prints the evidence dir. |
 | `shot <name>` | Captures the top-centre 900x220 pt strip of the primary screen. Prints the file. |
 | `stop` | Kills our instance (only if the pid still runs our binary) and removes `state/`. Keeps evidence. |
@@ -38,13 +39,13 @@ Paths: `SC_VERIFY_ROOT` (default `/tmp/shortcut-coach-verify`) holds `state/` (p
 
     .claude/skills/verify-shortcut-coach/scripts/coach.sh doctor
 
-Checks, each printed as `ok` or `FAIL`: our pid is alive and runs `.build/debug/ShortcutCoach`; it is the only `ShortcutCoach` process; `HEAD` is the commit it was launched at and the content of `Sources/**/*.swift` is unchanged since the launch build (content hash, since other tools touch mtimes); the menu bar menu is readable; exactly two island panels exist and are hidden (flash + guide, at window layer 2147483631); Tinycast has `hotkey.app.*` bindings; this shell is trusted for Accessibility (needed by `guide` and the onboarding/menu recipes); screen capture returns pixels. Run it first, and again whenever anything looks off. A stale-build `FAIL` means rerun `stop` then `launch`.
+Checks, each printed as `ok` or `FAIL`: our pid is alive and runs `.build/debug/ShortcutCoach`; it is the only `ShortcutCoach` process; `HEAD` is the commit it was launched at and the content of `Sources/**/*.swift` is unchanged since the launch build (content hash, since other tools touch mtimes); the menu bar menu is readable; exactly two island panels exist and are hidden (flash + guide, at window layer 2147483631); Tinycast has `hotkey.app.*` bindings; this shell is trusted for Accessibility (needed by `guide` and the onboarding/menu recipes); screen capture returns pixels. An `info` line says whether this shell's app has Input Monitoring, which the instance inherits: with it, only an app's own hotkey is a hit. Run it first, and again whenever anything looks off. A stale-build `FAIL` means rerun `stop` then `launch`.
 
 ## Drive
 
 Harnesses, in order of preference:
 
-1. **App activation** for the miss flash: `open -b <bundle-id>` is a Launch Services activation, the same path as a Dock click. No permission needed.
+1. **A real Dock click** for the miss flash: `probe dock <bundle-id>` finds the icon through Accessibility on the Dock process, posts a left mouse down and up at it, then moves the cursor back. Needs Accessibility. `open -b <bundle-id>` brings an app forward with no click or key, which the app treats as a switch the system made: the negative case.
 2. **Posted modifier flags** for the hold guide: `probe hyper <s>` posts `flagsChanged` with Control+Option+Shift+Command at the HID tap, exactly what Tinycast posts for hyper, re-posting every 100 ms and always releasing on exit (also on SIGINT/SIGTERM). Needs Accessibility for the calling process.
 3. **Accessibility (System Events)** for the menu bar menu and onboarding. Target the process by pid, never by name, so a second copy cannot be clicked by mistake:
 
@@ -58,15 +59,15 @@ Per-feature recipes live in [features/](features/README.md).
 
 ## Evidence
 
-Each `miss`/`guide` run writes `steps.txt` (action, front app before/after, timing), `windows-before.txt`, `windows-during.txt`, `windows-after.txt`, and a PNG of the notch strip into `/tmp/shortcut-coach-verify/evidence/<timestamp>-<name>/`.
+Each `dock`/`open`/`guide` run writes `steps.txt` (action, front app before/after, timing), `windows-before.txt`, `windows-during.txt`, `windows-after.txt`, and a PNG of the notch strip into `/tmp/shortcut-coach-verify/evidence/<timestamp>-<name>/`. `dock` and `open` also write `history-last.txt`, the newest switch record, and log `last key-down` in `steps.txt`.
 
 Proof standards:
 
-- Exercise the real user path: activate an app the way the system does, post the hyper flags the way Tinycast does, click the real menu and buttons. Never call internal setters, `Flash.demo`, or edit `UserDefaults` to fake a state.
+- Exercise the real user path: click the real Dock icon, post the hyper flags the way Tinycast does, click the real menu and buttons. Never call internal setters, `Flash.demo`, or edit `UserDefaults` to fake a state.
 - Capture the action and the resulting state: the before/during/after window lists show the island panel going `onscreen=false -> true -> false` with real bounds; the PNG shows its content (app icon, name, keycaps).
 - Read the PNG yourself and state what it shows. A window list without a picture proves a panel appeared, not what it said.
 - Screenshots are cropped to the notch strip on purpose: the rest of the user's screen is private. Do not take full-screen captures for evidence unless the feature needs them (badges sit on app windows; their window-list entries are the evidence).
-- Side effects: the only persistent write the app makes is `onboardingCompleted` (and `hyperKey` when chosen in onboarding) in its defaults domain. Check with `defaults read ShortcutCoach` when a recipe touches onboarding.
+- Side effects: the app writes `onboardingCompleted` (and `hyperKey` when chosen in onboarding) in its defaults domain, and every switch to `~/Library/Application Support/ShortcutCoach/history.json`. Check with `defaults read ShortcutCoach` when a recipe touches onboarding.
 
 ## Cleanup
 
@@ -78,10 +79,10 @@ Proof standards:
 ## Helpers
 
 - `scripts/coach.sh` (executable) - the commands above.
-- `scripts/probe.swift` - compiled by `launch` to `state/probe`. Direct use: `state/probe windows <pid>`, `state/probe hyper <seconds>`, `state/probe strip`, `state/probe front`.
+- `scripts/probe.swift` - compiled by `launch` to `state/probe`. Direct use: `state/probe windows <pid>`, `state/probe hyper <seconds>`, `state/probe strip`, `state/probe front`, `state/probe dock <bundle-id>`, `state/probe listen`, `state/probe keyago`.
 
 ## Permissions this skill relies on (never grant them yourself)
 
-- **Accessibility** for the process running the shell (in Claude Code, the responsible app). Without it, `guide` exits 3 (`probe: not trusted for Accessibility`) and the AX recipes fail. Ask the user to grant it.
+- **Accessibility** for the process running the shell (in Claude Code, the responsible app). Without it, `guide` and `dock` exit 3 (`probe: not trusted for Accessibility`) and the AX recipes fail. Ask the user to grant it.
 - **Screen Recording** for the same process, for the PNGs. Without it `screencapture` returns only the wallpaper and menu bar; doctor's capture check cannot tell that apart, so look at the image.
 - **Input Monitoring**: the debug binary started from a shell inherits the responsible app's grant. When granted, onboarding's permission step reads `Allowed` and the app watches the physical hyper key through IOHID. Posted flags do not pass through IOHID, so `guide` always exercises the modifier-flags path; the physical-key path (including "mouse move while holding hyper does not close the guide") needs a human pressing Caps Lock.

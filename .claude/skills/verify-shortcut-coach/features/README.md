@@ -16,7 +16,7 @@ This directory is the maintained source for verifying the user-facing behavior o
 - Target the app by pid in every Accessibility call (`first process whose unix id is <pid>`), never by process name.
 - Onboarding buttons have no accessible names. Address them by index in `group 1 of window 1` and identify the step by its title text.
 - Never send keystrokes through System Events; they go to whichever app is frontmost.
-- Bringing an app forward steals the user's focus. `coach.sh miss` gives it back afterwards.
+- Bringing an app forward steals the user's focus. `coach.sh dock` and `coach.sh open` give it back afterwards.
 
 ## Proof and skip reporting
 

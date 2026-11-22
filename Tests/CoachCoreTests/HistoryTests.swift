@@ -29,6 +29,7 @@ func record(_ id: String, at: Date) -> SwitchRecord { SwitchRecord(bundleID: id,
         SwitchRecord(bundleID: "com.tinyspeck.slackmacgap", outcome: .hit, method: .hotkey, at: t0 + 0.123),
         SwitchRecord(bundleID: "md.obsidian", outcome: .miss, method: .commandTab, at: t0 + 1),
         SwitchRecord(bundleID: "com.apple.finder", outcome: .unbound, method: .other, at: t0 + 2),
+        SwitchRecord(bundleID: "company.thebrowser.dia", outcome: .system, method: .other, at: t0 + 3),
     ]
     #expect(try JSONDecoder().decode([SwitchRecord].self, from: JSONEncoder().encode(records)) == records)
 }

@@ -58,11 +58,16 @@ Every other key is dropped as it arrives: nothing you type is read or stored.
 
 Without the permission it still works, but moving the mouse while holding the hyper key reads
 as letting go, because Tinycast's hyper is posted as modifier flags and a real mouse move
-resets them.
+resets them. It also cannot see which hotkey you pressed (see What counts as a miss).
 
-With or without the permission, each app switch is stored: the app, whether it was a hit, a
-miss or an app with no hotkey, how you switched (hotkey, Cmd+Tab or other) and the time. No
-key is stored. The history is a file on your Mac,
+With or without the permission, and without asking for another, the app notes where your last
+click landed: which app's window, not what is in it. It also asks macOS when a key last went
+down, not which key. Both stay in memory and let the app tell a switch you made from one the
+system made.
+
+Each app switch is stored: the app, whether it was a hit, a miss, an app with no hotkey or a
+switch the system made, how you switched (hotkey, Cmd+Tab or other) and the time. No key or
+click is stored. The history is a file on your Mac,
 `~/Library/Application Support/local.shortcut-coach/history.json`, and keeps the last 30
 days, at most 5,000 switches.
 
@@ -79,14 +84,18 @@ Shift + Command; only the physical key and its glyph in the island change.
 
 A bound app coming to the front is a miss unless:
 
-- its hotkey's modifiers (hyper, or for example Cmd+Shift) were held in the last 3 s;
+- you pressed its own hotkey in the last 3 s. Pressing another app's hotkey and then clicking
+  this one is a miss. Without Input Monitoring the app cannot see which key you pressed, so
+  holding the hotkey's modifiers (hyper, or for example Cmd+Shift) in the last 3 s counts;
+- you did not bring it forward: in the last 3 s no key went down and no click landed on the
+  Dock, Stage Manager or the app itself. A link in Slack opening your browser, or a clicked
+  notification, is a click on another app, so it does not flash. Neither does a trackpad swipe
+  to another full-screen app;
 - the app in front before it quit or hid, so macOS chose the next app, not you;
 - it was already in front, or the change came from a lock screen or system prompt.
 
-The miss decision uses which app came forward and whether the modifiers were held, not which
-letter you pressed or where you clicked. So a switch the system made for you (a link in
-Slack opening your browser, a clicked notification) flashes as if you had missed the
-hotkey, and any hyper combination in the last 3 s counts as using the hotkey.
+Any key counts as bringing the app forward, so a link or notification clicked within 3 s of
+typing still flashes.
 
 Window-management shortcuts are not coached.
 
