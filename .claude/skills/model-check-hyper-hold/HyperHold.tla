@@ -51,11 +51,12 @@ VARIABLES
     cause,         \* "none" | "hotkey" (Tinycast switched on hyper+letter) | "click" (any other way)
     activatedThisHold,  \* the app saw a bound app activate during the current physical hold
     holdPolls,          \* polls during the current hold after the listener caught up, capped
-    polledSinceRelease  \* a poll ran after the release with the listener caught up
+    polledSinceRelease, \* a poll ran after the release with the listener caught up
+    polledSinceActivation  \* a poll ran after AppActivated with the listener caught up
 
 vars == <<phys, flagsHyper, hidQ, isDown, pressed, pressTicks, lastHeldHyper, heldSince, ticks,
           actSincePress, actSinceHeld, guideVisible, activation, hidAhead, flashed, presses, cause,
-          activatedThisHold, holdPolls, polledSinceRelease>>
+          activatedThisHold, holdPolls, polledSinceRelease, polledSinceActivation>>
 
 Min(a, b) == IF a < b THEN a ELSE b
 
@@ -70,10 +71,11 @@ Init ==
     /\ activation = "none" /\ hidAhead = 0 /\ flashed = FALSE
     /\ presses = 0 /\ cause = "none"
     /\ activatedThisHold = FALSE /\ holdPolls = 0 /\ polledSinceRelease = FALSE
+    /\ polledSinceActivation = FALSE
 
 \* The app's own state, which only main-thread actions change.
 app == <<isDown, pressed, pressTicks, lastHeldHyper, heldSince, ticks, actSincePress, actSinceHeld,
-         guideVisible, hidAhead, flashed>>
+         guideVisible, hidAhead, flashed, polledSinceActivation>>
 
 ---------------------------------------------------------------------------
 \* Outside the app.
@@ -120,18 +122,20 @@ UserClicksBoundApp ==
 \* sampleModifiers(): lastHeld[hyper] is set if hyper is held now or pressedAt is set.
 Sampled == lastHeldHyper \/ Held \/ pressed
 
-\* HyperKeyListener.handle: `isDown = down`, and on a key-down `pressedAt = systemUptime`.
+\* HyperKeyListener.handle: `isDown = down`, and on a key-down `pressedAt` = the HID value's own
+\* timestamp. A value that was already waiting when appActivated ran (hidAhead > 0) was pressed
+\* before the activation, so activatedAt >= pressedAt.
 HidCallback ==
     /\ hidQ /= <<>>
     /\ isDown' = Head(hidQ) /\ hidQ' = Tail(hidQ)
     /\ IF Head(hidQ)
          THEN /\ pressed' = TRUE /\ pressTicks' = 0
-              /\ actSincePress' = FALSE  \* the new pressedAt is later than any activation so far
+              /\ actSincePress' = (hidAhead > 0)
          ELSE UNCHANGED <<pressed, pressTicks, actSincePress>>
     /\ hidAhead' = IF hidAhead > 0 THEN hidAhead - 1 ELSE 0
     /\ UNCHANGED <<phys, flagsHyper, lastHeldHyper, heldSince, ticks, actSinceHeld, guideVisible,
                    activation, flashed, presses, cause, activatedThisHold,
-                   holdPolls, polledSinceRelease>>
+                   holdPolls, polledSinceRelease, polledSinceActivation>>
 
 \* Coach.poll: sampleModifiers(), then
 \* HoldTracker.update(hyperHeld:, pressedAt: isDown ? pressedAt : nil, now:), which takes
@@ -152,6 +156,7 @@ Poll ==
               /\ guideVisible' = FALSE
     /\ holdPolls' = IF phys /\ hidQ = <<>> THEN Min(holdPolls + 1, DelayPolls + 1) ELSE holdPolls
     /\ polledSinceRelease' = (polledSinceRelease \/ (~phys /\ hidQ = <<>>))
+    /\ polledSinceActivation' = (polledSinceActivation \/ (activation \in {"deciding", "done"} /\ hidQ = <<>>))
     /\ UNCHANGED <<phys, flagsHyper, hidQ, isDown, pressed, actSincePress, activation, hidAhead,
                    flashed, presses, cause, activatedThisHold>>
 
@@ -165,6 +170,7 @@ AppActivated ==
     /\ hidAhead' = Len(hidQ)
     /\ activation' = "deciding"
     /\ activatedThisHold' = (activatedThisHold \/ phys)
+    /\ polledSinceActivation' = FALSE
     /\ UNCHANGED <<phys, flagsHyper, hidQ, isDown, pressed, pressTicks, heldSince, ticks,
                    guideVisible, flashed, presses, cause, holdPolls, polledSinceRelease>>
 
@@ -176,7 +182,7 @@ DecideMiss ==
     /\ activation' = "done"
     /\ UNCHANGED <<phys, flagsHyper, hidQ, isDown, pressed, pressTicks, heldSince, ticks,
                    actSincePress, actSinceHeld, guideVisible, hidAhead, presses, cause,
-                   activatedThisHold, holdPolls, polledSinceRelease>>
+                   activatedThisHold, holdPolls, polledSinceRelease, polledSinceActivation>>
 
 Next ==
     \/ UserPressesHyper \/ UserReleasesHyper \/ UserMovesMouse
@@ -199,6 +205,11 @@ GuideHidesAfterRelease ==
 \* (shortcut-coach-design.md at 07b4a20, "The hold guide": "no bound app was activated in that time").
 GuideShowsOnLongHold ==
     (phys /\ ~activatedThisHold /\ holdPolls > DelayPolls) => guideVisible
+
+\* A bound app activated during this hold keeps the guide hidden until release, from the first
+\* poll after the activation once the listener has caught up (same design line).
+GuideStaysHiddenAfterActivation ==
+    (phys /\ activatedThisHold /\ polledSinceActivation) => ~guideVisible
 
 TypeOK ==
     /\ phys \in BOOLEAN /\ flagsHyper \in BOOLEAN /\ isDown \in BOOLEAN

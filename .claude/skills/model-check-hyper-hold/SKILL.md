@@ -5,13 +5,14 @@ description: "TLA+ model check of the hyper-key path in Shortcut Coach: HyperKey
 
 # Model-check the hyper hold
 
-`HyperHold.tla` (next to this file) is a small TLA+ model of how the hyper key's events, the poll timer and app-activation notifications interleave on the main run loop. TLC checks every order of those events, up to the bounds below, against three promises:
+`HyperHold.tla` (next to this file) is a small TLA+ model of how the hyper key's events, the poll timer and app-activation notifications interleave on the main run loop. TLC checks every order of those events, up to the bounds below, against four promises:
 
 | Property | Plain sentence | Harm if broken |
 | --- | --- | --- |
 | `HotkeyNeverFlashes` | A switch made with the hyper hotkey never flashes a miss. | The coach scolds you for doing the right thing. |
 | `GuideHidesAfterRelease` | Once the key is up and a poll has seen that, the guide is hidden. | The guide sticks on screen over your work. |
 | `GuideShowsOnLongHold` | Holding hyper past the delay shows the guide, unless a bound app activated during this hold. | You hesitate, hold the key, and get no help. |
+| `GuideStaysHiddenAfterActivation` | After a bound app activates during a hold, the guide stays hidden until release, from the first poll once the listener has caught up. | The guide pops up over the app you just switched to. |
 
 `TypeOK` is a sanity check on the model itself.
 
@@ -48,7 +49,7 @@ Each main-thread action is one main-actor callback, so it is indivisible in the 
 
 | Model action | Code |
 | --- | --- |
-| `HidCallback` | `HyperKeyListener.handle(_:down:)`: sets `isDown`, and `pressedAt` on a key-down; run on the main run loop by the callback in `HyperKeyListener.open()` (`Sources/ShortcutCoach/Signal.swift`) |
+| `HidCallback` | `HyperKeyListener.handle(_:down:at:)`: sets `isDown`, and on a key-down `pressedAt` = the HID value's own timestamp (`IOHIDValueGetTimeStamp`, mach absolute time, the same clock as `systemUptime`), so a value that was waiting when `appActivated` ran counts as pressed before it; run on the main run loop by the callback in `HyperKeyListener.open()` (`Sources/ShortcutCoach/Signal.swift`) |
 | `Poll` | `Coach.poll()`: `sampleModifiers()`, which also folds `pressedAt` into `lastHeld`, then `HoldTracker.update(hyperHeld:pressedAt:now:)` with `pressedAt` only while `isDown` (`Coach.swift`, `Sources/CoachCore/Decisions.swift`); `guideVisible` is `Coach.guideVisible`, which drives `Guide.show/hide` in `main.swift` |
 | `Held` | `heldModifiers() == hyperModifiers`: `isDown`, else the posted flags (`Signal.swift`) |
 | `AppActivated` | the synchronous part of `Coach.appActivated`: `sampleModifiers()`, `tracker.boundAppActivated(now:)` |
@@ -90,4 +91,4 @@ Last confirmed in step with the code at commit `90d1b4b578a065146e764fd2eeeaa464
 
 Changing the hyper key (`refreshHyperKey`, onboarding `capture`), lost key-ups (keyboard unplugged or sleep while held, Input Monitoring revoked), two keyboards or Caps Lock and F18 both reporting, the no-permission path beyond the flags reset by a mouse move, quit/hide suppression and `previousFrontmost`, binding parsing, real timing (grace expiry, the 0.7 s delay as time), and everything the guide and flash draw.
 
-Two promises are checked in one direction only. No property says that a real miss flashes, and by design a hyper press in the 150 ms before the decision suppresses one. No property says that the guide stays hidden after a bound app activates during the hold. A scratch property for it fails on the fixed code when `appActivated` runs before the key-down callback, because `pressedAt` is the time the callback ran.
+Two promises are checked in one direction only. No property says that a real miss flashes, and by design a hyper press in the 150 ms before the decision suppresses one. `GuideStaysHiddenAfterActivation` fails if `pressedAt` is stamped when the callback runs instead of from the HID value (replace `actSincePress' = (hidAhead > 0)` with `FALSE` in `HidCallback` to see it).

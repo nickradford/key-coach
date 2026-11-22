@@ -14,7 +14,7 @@ fi
 
 # Properties the current code is known to break (see SKILL.md, Findings). Update both together.
 known=""
-all="TypeOK GuideHidesAfterRelease HotkeyNeverFlashes GuideShowsOnLongHold"
+all="TypeOK GuideHidesAfterRelease HotkeyNeverFlashes GuideShowsOnLongHold GuideStaysHiddenAfterActivation"
 props=${*:-$all}
 
 work=$(mktemp -d "${TMPDIR:-/tmp}/hyperhold.XXXXXX")
