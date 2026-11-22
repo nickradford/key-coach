@@ -1,0 +1,8 @@
+---
+// The miss flash's content (Flash.swift): icon, app name, then one keycap per key.
+import type { App } from '../lib/apps';
+import Tile from './Tile.astro';
+interface Props { app: App }
+const { app } = Astro.props;
+---
+<div class="flash-row"><Tile app={app} size={26} /><span class="app-name">{app.name}</span><span class="caps"><kbd class="cap">⇪</kbd><kbd class="cap">{app.key}</kbd></span></div>

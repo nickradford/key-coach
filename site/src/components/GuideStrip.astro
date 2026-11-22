@@ -1,0 +1,9 @@
+---
+// The hold guide's content (Guide.swift): one cell per hyper binding, icon over keycap, then "Hide others".
+import { APPS } from '../lib/apps';
+import Tile from './Tile.astro';
+---
+<div class="guide-strip">
+  {APPS.map((app) => <div class="cell"><Tile app={app} size={36} /><kbd class="cap">{app.key}</kbd></div>)}
+  <div class="cell"><span class="hide-others">Hide others</span><kbd class="cap">F</kbd></div>
+</div>

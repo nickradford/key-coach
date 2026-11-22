@@ -1,0 +1,10 @@
+---
+// A notch-sized island; src/lib/island.ts grows it around content. `shown` renders it open, for still pictures.
+interface Props { shown?: boolean; class?: string }
+const { shown = false, class: className } = Astro.props;
+---
+<div class:list={['island', className]} data-state={shown ? 'shown' : 'hidden'}>
+  <i class="ear l"></i>
+  <div class="island-body">{shown && <div class="island-content"><slot /></div>}</div>
+  <i class="ear r"></i>
+</div>

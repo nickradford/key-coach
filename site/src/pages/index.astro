@@ -1,0 +1,141 @@
+---
+import '../styles/site.css';
+import Demo from '../components/Demo.astro';
+import FlashRow from '../components/FlashRow.astro';
+import GuideStrip from '../components/GuideStrip.astro';
+import Island from '../components/Island.astro';
+import { APPS } from '../lib/apps';
+import { SPRING, SPRING_MS } from '../lib/motion';
+
+const repo = 'https://github.com/nickradford/key-coach';
+const install = `git clone ${repo} && cd key-coach && scripts/install.sh`;
+const messages = APPS.find((a) => a.id === 'messages')!;
+const title = 'Shortcut Coach';
+const description = 'A macOS menu-bar app that helps you learn the Tinycast hotkeys you already set up.';
+const og = new URL('/og.png', Astro.site).href;
+
+const stages = [
+  { name: 'Learning', rule: 'first tries', hold: 1.6 },
+  { name: 'Practicing', rule: '5+, half hits', hold: 1.0 },
+  { name: 'Fluent', rule: '10+, 80% hits', hold: 0.6 },
+  { name: 'Learned', rule: '19 of last 20', hold: 0 },
+];
+---
+<!doctype html>
+<html lang="en" style={`--spring:${SPRING};--spring-ms:${SPRING_MS}ms`}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <meta name="theme-color" content="#0b0b0d" />
+    <link rel="icon" href="/favicon.png" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="canonical" href={Astro.site} />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content={Astro.site} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:image" content={og} />
+    <meta property="og:image:width" content="1600" />
+    <meta property="og:image:height" content="640" />
+    <meta property="og:image:alt" content="A black island drops from the notch showing Messages and the keys Caps Lock and M" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <script is:inline>document.documentElement.classList.add('js')</script>
+  </head>
+  <body>
+    <header class="hero">
+      <div class="menubar-strip"></div>
+      <div class="notch"></div>
+      <Island />
+      <template data-hero><FlashRow app={messages} /></template>
+      <h1>Shortcut Coach</h1>
+      <p class="tagline">Learn the Tinycast hotkeys you already set&nbsp;up.</p>
+      <p class="lede">A small menu-bar app for macOS. Switch to an app the long way and the notch shows you its hotkey.</p>
+      <div class="actions">
+        <a class="button" href="#install">Install</a>
+        <a class="button ghost" href={repo}>View on GitHub</a>
+      </div>
+    </header>
+
+    <main>
+      <section class="section" id="try" aria-labelledby="try-title">
+        <div class="section-head" data-reveal>
+          <h2 id="try-title">Try it</h2>
+          <p>Click an app in the Dock or one of its windows, the long way, and the notch shows its hotkey. Then switch with the hotkey instead. Hold the hyper key a moment to see every binding.</p>
+        </div>
+        <div data-reveal><Demo /></div>
+        <p class="caption">Each switch here counts as four attempts, so five hotkey presses teach an app. The app counts every switch once.</p>
+      </section>
+
+      <section class="section features" aria-label="Features">
+        <article class="feature" data-reveal>
+          <div class="card" role="img" aria-label="The island under the notch, showing Messages and Caps Lock M">
+            <div class="card-strip"></div><div class="notch"></div>
+            <Island shown><FlashRow app={messages} /></Island>
+          </div>
+          <h3>A flash when you miss</h3>
+          <p>Bring a bound app forward with a click, the Dock, Cmd+Tab or a launcher, and the island drops from the notch with the app and its hotkey. It never takes focus or a click.</p>
+        </article>
+        <article class="feature" data-reveal>
+          <div class="card guide-card" role="img" aria-label="The hold guide: every app's icon over its letter, then Hide others on F">
+            <div class="card-strip"></div><div class="notch"></div>
+            <Island shown><GuideStrip /></Island>
+          </div>
+          <h3>A guide when you forget</h3>
+          <p>Hold Caps Lock for 0.7&nbsp;s and the island lists every hyper binding, with a letter badge on each bound window. Let go to hide it.</p>
+        </article>
+        <article class="feature" data-reveal>
+          <div class="card stages-card">
+            <ol class="stages" aria-label="Flash length by stage">
+              {stages.map((s) => (
+                <li style={`--hold:${s.hold}`}>
+                  <span class="stage-name">{s.name}<small>{s.rule}</small></span>
+                  <span class="bar" aria-hidden="true"></span>
+                  <span class="stage-hold">{s.hold ? `${s.hold.toFixed(1)} s` : 'no flash'}</span>
+                </li>
+              ))}
+            </ol>
+          </div>
+          <h3>Quieter as you learn</h3>
+          <p>Each app's flash depends on its last 20 switches. Use the hotkey and the flash gets shorter. Once you know it the flash stops, and the island marks the app learned, once.</p>
+        </article>
+      </section>
+
+      <section class="section narrow" aria-labelledby="privacy-title" data-reveal>
+        <h2 id="privacy-title">Private by design</h2>
+        <p>Shortcut Coach asks for Input Monitoring to see the hyper key and which hotkey you press.</p>
+        <ul class="facts">
+          <li><b>It reads only the keys that can be hyper,</b> and a key pressed while a hotkey's modifiers are held, to tell whether it is one of your hotkeys.</li>
+          <li><b>Nothing you type is stored.</b> Every other key is dropped as it arrives.</li>
+          <li><b>The history is a file on your Mac.</b> Each switch is kept for 30 days: the app, hit or miss, and the time. Nothing leaves your Mac.</li>
+        </ul>
+      </section>
+
+      <section class="section narrow" id="install" aria-labelledby="install-title" data-reveal>
+        <h2 id="install-title">Install</h2>
+        <ul class="reqs">
+          <li>macOS 14 or later</li>
+          <li>Tinycast, with hotkeys bound to apps</li>
+          <li>Xcode Command Line Tools: <code>xcode-select --install</code></li>
+        </ul>
+        <div class="command">
+          <code>{install.split(' && ').map((line) => <span>{line}</span>)}</code>
+          <button type="button" data-copy={install}>Copy</button>
+        </div>
+        <p>The script builds the app, installs it in <code>~/Applications</code> and starts it now and at every login. A short onboarding walks through the permission and the hyper key.</p>
+        <p><a class="link" href={repo}>Source, uninstall and details on GitHub →</a></p>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <span>Shortcut Coach</span>
+      <a href={repo}>GitHub</a>
+      <span>Not affiliated with Tinycast.</span>
+    </footer>
+
+    <script>
+      import '../scripts/page';
+    </script>
+  </body>
+</html>
