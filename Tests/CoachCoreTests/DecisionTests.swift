@@ -52,7 +52,7 @@ func miss(_ i: MissInput) -> Binding? { missedBinding(i, bindings: all, ownBundl
 @Test func activationKeepsGuideClosedUntilRelease() {
     var t = HoldTracker()
     _ = t.update(hyperHeld: true, now: 10.0)
-    t.boundAppActivated()
+    t.boundAppActivated(now: 10.5)
     #expect(t.update(hyperHeld: true, now: 11.0) == false)
     _ = t.update(hyperHeld: false, now: 11.1)
     _ = t.update(hyperHeld: true, now: 11.2)
@@ -62,6 +62,28 @@ func miss(_ i: MissInput) -> Binding? { missedBinding(i, bindings: all, ownBundl
     var t = HoldTracker()
     _ = t.update(hyperHeld: true, now: 10.0)
     #expect(t.update(hyperHeld: true, now: 10.8) == true)
-    t.boundAppActivated()
+    t.boundAppActivated(now: 10.85)
     #expect(t.update(hyperHeld: true, now: 10.9) == false)
+}
+@Test func activationBeforeAnUnpolledPressDoesNotBlockIt() {
+    var t = HoldTracker()
+    _ = t.update(hyperHeld: false, now: 9.98)
+    t.boundAppActivated(now: 9.99)
+    #expect(t.update(hyperHeld: true, pressedAt: 9.995, now: 10.01) == false)
+    #expect(t.update(hyperHeld: true, pressedAt: 9.995, now: 10.75) == true)
+}
+@Test func rePressBetweenPollsRestartsTheHold() {
+    var t = HoldTracker()
+    _ = t.update(hyperHeld: true, pressedAt: 10.0, now: 10.01)
+    t.boundAppActivated(now: 10.2)
+    #expect(t.update(hyperHeld: true, pressedAt: 10.0, now: 10.8) == false)
+    #expect(t.update(hyperHeld: true, pressedAt: 10.82, now: 11.4) == false)   // released and pressed again since 10.8
+    #expect(t.update(hyperHeld: true, pressedAt: 10.82, now: 11.55) == true)
+}
+@Test func activationDuringAnUnpolledHoldBlocks() {
+    var t = HoldTracker()
+    _ = t.update(hyperHeld: false, now: 9.98)
+    t.boundAppActivated(now: 10.0)
+    #expect(t.update(hyperHeld: true, pressedAt: 9.99, now: 10.01) == false)
+    #expect(t.update(hyperHeld: true, pressedAt: 9.99, now: 11.0) == false)
 }

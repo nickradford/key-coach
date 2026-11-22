@@ -44,7 +44,7 @@ public struct HoldTracker {
 
     public init() {}
 
-    public mutating func update(hyperHeld: Bool, now: TimeInterval) -> Bool {
+    public mutating func update(hyperHeld: Bool, pressedAt: TimeInterval? = nil, now: TimeInterval) -> Bool {
         guard hyperHeld else {
             heldSince = nil
             blocked = false
@@ -55,5 +55,5 @@ public struct HoldTracker {
         return !blocked && now - since >= Self.delay
     }
 
-    public mutating func boundAppActivated() { blocked = true }
+    public mutating func boundAppActivated(now: TimeInterval) { blocked = true }
 }

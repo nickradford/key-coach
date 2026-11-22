@@ -47,7 +47,7 @@ final class Coach: NSObject {
         let id = app.bundleIdentifier ?? ""
         let bindings = parseBindings(loadTinycastPrefs())
         let input = MissInput(activated: id, previousFrontmost: previousFrontmost, now: now, lastHeld: lastHeld)
-        if bindings.contains(where: { $0.bundleID == id }) { tracker.boundAppActivated() }
+        if bindings.contains(where: { $0.bundleID == id }) { tracker.boundAppActivated(now: now) }
         // A lock screen, password prompt or other non-regular app taking focus is not a switch:
         // coming back from it to the same app must not count as a miss.
         if app.activationPolicy == .regular { previousFrontmost = id }
