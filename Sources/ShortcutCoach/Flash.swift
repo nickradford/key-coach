@@ -5,15 +5,14 @@ import CoachCore
 /// used, and retracts.
 @MainActor
 final class Flash {
-    private static let hold = 1.6  // from the start of the drop to the start of the retract
     private static let height: CGFloat = 52
 
     private let island = Island()
     private var generation = 0
 
-    func show(_ binding: Binding, app: NSRunningApplication) {
+    func show(_ binding: Binding, app: NSRunningApplication, hold: TimeInterval) {
         guard let screen = screen(for: app) else { return }
-        show(binding, icon: app.icon, name: app.localizedName ?? binding.bundleID, on: screen)
+        show(binding, icon: app.icon, name: app.localizedName ?? binding.bundleID, on: screen, hold: hold)
     }
 
     /// A sample flash for `binding`, as if its app had just been brought forward the long way.
@@ -26,13 +25,15 @@ final class Flash {
         show(binding, icon: icon, name: name, on: screen)
     }
 
-    func show(_ binding: Binding, icon: NSImage?, name: String, on screen: NSScreen) {
+    /// `hold`: from the start of the drop to the start of the retract.
+    func show(_ binding: Binding, icon: NSImage?, name: String, on screen: NSScreen,
+              hold: TimeInterval = Fluency.learning.flashHold!) {
         generation += 1
         let mine = generation
         let (row, size) = content(binding, icon: icon, name: name, scale: screen.backingScaleFactor)
         island.show(row, size: size, sidePadding: 16, on: screen)
         Task {
-            try? await Task.sleep(for: .seconds(Self.hold))
+            try? await Task.sleep(for: .seconds(hold))
             if mine == generation { island.hide() }  // a newer flash restarts the hold
         }
     }
