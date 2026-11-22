@@ -157,7 +157,7 @@ private struct PermissionStep: View {
 
     var body: some View {
         StepLayout(title: "Input Monitoring",
-                   text: "To tell when you hold the hyper key, Shortcut Coach listens to the keys that can be hyper. macOS calls this Input Monitoring. Every other key is ignored.") {
+                   text: "To tell when you hold the hyper key and which shortcut you press, Shortcut Coach reads the keys that can be hyper, a key pressed while a shortcut's modifiers are held, and ⌘Tab. macOS calls this Input Monitoring. Everything else you type is ignored. Each app switch is saved on this Mac as the app, hit or miss, how you switched and when, never a key.") {
             if model.accessGranted {
                 CheckRow(text: "Allowed", done: true)
             } else if model.access == kIOHIDAccessTypeDenied {

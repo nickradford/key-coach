@@ -42,14 +42,29 @@ opens that window again, and Quit stops the app until the next login.
 ## Permission
 
 The onboarding's third step asks for **Input Monitoring** so the app can see the physical
-hyper key; nothing is asked at launch. It listens only to the keys that can be hyper (Caps
-Lock, F18 and the right-hand modifiers) and ignores every other key; nothing you type is read
-or stored. Turn it on in System Settings > Privacy & Security > Input Monitoring, or reopen
-the step with **Show Onboarding…**. The app picks it up within a second, with no restart.
+hyper key and which hotkey you press; nothing is asked at launch. Turn it on in System
+Settings > Privacy & Security > Input Monitoring, or reopen the step with **Show
+Onboarding…**. The app picks it up within a second, with no restart.
+
+With the permission, the app reads only:
+
+- the keys that can be hyper (Caps Lock, F18 and the right-hand modifiers);
+- a key pressed while a hotkey's modifiers are held (hyper, or for example Cmd+Shift), to
+  tell whether it is one of your hotkeys. Any other key pressed then is noted only as "not a
+  hotkey", never which key it was;
+- Tab while Command is held, to tell a Cmd+Tab switch from a click.
+
+Every other key is dropped as it arrives: nothing you type is read or stored.
 
 Without the permission it still works, but moving the mouse while holding the hyper key reads
 as letting go, because Tinycast's hyper is posted as modifier flags and a real mouse move
 resets them.
+
+With or without the permission, each app switch is stored: the app, whether it was a hit, a
+miss or an app with no hotkey, how you switched (hotkey, Cmd+Tab or other) and the time. No
+key is stored. The history is a file on your Mac,
+`~/Library/Application Support/local.shortcut-coach/history.json`, and keeps the last 30
+days, at most 5,000 switches.
 
 The app is ad-hoc signed, so macOS may ask you to approve it again after each reinstall.
 
@@ -68,7 +83,7 @@ A bound app coming to the front is a miss unless:
 - the app in front before it quit or hid, so macOS chose the next app, not you;
 - it was already in front, or the change came from a lock screen or system prompt.
 
-The app sees which app came forward and whether the modifiers were held, but not which
+The miss decision uses which app came forward and whether the modifiers were held, not which
 letter you pressed or where you clicked. So a switch the system made for you (a link in
 Slack opening your browser, a clicked notification) flashes as if you had missed the
 hotkey, and any hyper combination in the last 3 s counts as using the hotkey.
@@ -80,11 +95,13 @@ Window-management shortcuts are not coached.
     scripts/uninstall.sh
 
 This removes the app and its LaunchAgent and nothing else. Remove Shortcut Coach from the
-Input Monitoring list yourself if you like.
+Input Monitoring list, and the history in `~/Library/Application Support/local.shortcut-coach`,
+yourself if you like.
 
 ## Development
 
-    swift test                    # decision logic: bindings, misses, hold timing, geometry
+    swift test                    # decision logic: bindings, key presses, misses, history,
+                                  # hold timing, geometry
     swift run                     # run without installing (from Terminal it uses
                                   # Terminal's Input Monitoring permission)
     swift scripts/render-art.swift  # redraw assets/icon.png, header.png and AppIcon.icns
