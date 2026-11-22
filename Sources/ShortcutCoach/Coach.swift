@@ -91,9 +91,7 @@ final class Coach: NSObject {
             }
             if app.activationPolicy == .regular, let outcome = switchOutcome(input, bindings: bindings, ownBundleID: ownID) {
                 history.append(SwitchRecord(bundleID: id, outcome: outcome, method: switchMethod(input), at: at))
-                // Only on a hit: a miss can complete the first 20 attempts, and "Learned" right after a miss reads wrong.
-                if outcome == .hit, before != .graduated, fluency(of: id, in: history.records) == .graduated,
-                   let binding = bindings.first(where: { $0.bundleID == id }) {
+                if justGraduated(id, in: history.records), let binding = bindings.first(where: { $0.bundleID == id }) {
                     onGraduate(binding, app)
                 }
             }

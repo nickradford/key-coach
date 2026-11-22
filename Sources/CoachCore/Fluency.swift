@@ -31,3 +31,12 @@ public func fluency(of bundleID: String, in records: [SwitchRecord]) -> Fluency 
     let rate = attempts.isEmpty ? 0 : Double(attempts.count { $0.outcome == .hit }) / Double(attempts.count)
     return stages.first { attempts.count >= $0.attempts && rate >= $0.hitRate }?.fluency ?? .learning
 }
+
+/// The hit at the end of `records` graduated the app for the first time in the kept history.
+/// Once per history, so an app hovering near 95% doesn't celebrate every time it climbs back.
+public func justGraduated(_ bundleID: String, in records: [SwitchRecord]) -> Bool {
+    guard let last = records.last, last.bundleID == bundleID, last.outcome == .hit else { return false }
+    let attempts = records.filter { $0.bundleID == bundleID && [.hit, .miss].contains($0.outcome) }
+    let graduated = { (end: Int) in fluency(of: bundleID, in: Array(attempts[max(0, end - window + 1)...end])) == .graduated }
+    return graduated(attempts.count - 1) && !(0..<attempts.count - 1).contains(where: graduated)
+}

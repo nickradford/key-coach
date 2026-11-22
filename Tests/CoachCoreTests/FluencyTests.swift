@@ -42,3 +42,14 @@ private func misses(_ count: Int) -> [SwitchRecord] { switches(.miss, count) }
     #expect(Fluency.fluent.flashHold == 0.6)
     #expect(Fluency.graduated.flashHold == nil)
 }
+@Test func celebratesTheHitThatFirstGraduates() {
+    #expect(justGraduated(app, in: hits(20)))
+    #expect(!justGraduated(app, in: hits(19)))
+    #expect(!justGraduated(app, in: hits(19) + misses(1)))  // a miss never celebrates
+    #expect(!justGraduated(app, in: hits(20) + switches(.hit, 1, of: "other")))
+}
+@Test func celebratesOnlyOncePerHistory() {
+    #expect(!justGraduated(app, in: hits(21)))
+    // Dips to fluent, then climbs back once the misses leave the window.
+    #expect(!justGraduated(app, in: hits(20) + misses(2) + hits(20)))
+}
