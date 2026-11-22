@@ -1,6 +1,5 @@
+import AppKit
 import CoachCore
-import CoreGraphics
-import Foundation
 import IOKit.hid
 
 /// The modifiers down right now, as a Carbon mask.
@@ -18,6 +17,23 @@ import IOKit.hid
 }
 
 @MainActor func hyperHeld() -> Bool { heldModifiers() == hyperModifiers }
+
+/// When any key last went down (system uptime), which key unknown. Needs no permission.
+func lastKeyDownAt() -> TimeInterval {
+    ProcessInfo.processInfo.systemUptime - CGEventSource.secondsSinceLastEventType(.hidSystemState, eventType: .keyDown)
+}
+
+/// The bundle ID of the app whose window a mouse event went to, or nil when it went to no app's window.
+/// Reads only which app owns the window, nothing in it. Needs no permission.
+func windowOwner(of event: NSEvent) -> String? {
+    // The window server's own record of where the click went, so a window opening after it cannot change the answer.
+    guard let window = event.cgEvent?.getIntegerValueField(.mouseEventWindowUnderMousePointerThatCanHandleThisEvent),
+          window != 0,
+          let info = (CGWindowListCopyWindowInfo(.optionIncludingWindow, CGWindowID(window)) as? [[String: Any]])?.first,
+          let pid = info[kCGWindowOwnerPID as String] as? pid_t
+    else { return nil }
+    return NSRunningApplication(processIdentifier: pid)?.bundleIdentifier
+}
 
 /// The hyper key: Tinycast's setting, else the key chosen in onboarding, else Caps Lock. Read fresh.
 @MainActor func currentHyperKey() -> HyperKey {
@@ -45,6 +61,9 @@ final class HyperKeyListener {
     var capture: (@MainActor (HyperKey) -> Void)?
     private var manager: IOHIDManager?
     private var timer: Timer?
+
+    /// Input Monitoring is granted and the keyboards are open, so `lastPress` sees every hotkey press.
+    var isListening: Bool { manager != nil }
 
     static var access: IOHIDAccessType { IOHIDCheckAccess(kIOHIDRequestTypeListenEvent) }
 
