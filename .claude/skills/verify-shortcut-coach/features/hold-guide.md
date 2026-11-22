@@ -21,7 +21,7 @@ While the user holds the hyper key (Caps Lock via Tinycast, or the key chosen in
 Preconditions:
 
 - Baseline preconditions hold, including Accessibility for the shell.
-- No island on screen (wait 2 s after a `miss`).
+- No island on screen (wait 2 s after a `dock`).
 
 - **Hold hyper.** Run `coach.sh guide` (3 s hold). `steps.txt` records `guide on screen after ~800 ms`. `windows-during.txt` shows the strip panel `onscreen=true` at `y=0` (about 447x158 with six cells) and one `onscreen=true` 116x116 panel per visible bound-app window.
 - **Strip content.** Read `guide.png`. It shows one icon over a keycap per bound app (here `C D O R Z`) and `Hide others` over `F`.

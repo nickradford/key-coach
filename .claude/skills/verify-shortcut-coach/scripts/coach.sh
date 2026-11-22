@@ -1,7 +1,7 @@
 #!/bin/bash
 # Launch, inspect, drive and tear down one verification instance of Shortcut Coach.
-# Usage: coach.sh launch [--onboarding] | doctor | windows | miss <bundle-id> | guide [seconds]
-#                 | shot <name> | stop
+# Usage: coach.sh launch [--onboarding] | doctor | windows | dock <bundle-id> | open <bundle-id>
+#                 | guide [seconds] | shot <name> | stop
 set -euo pipefail
 repo="$(cd "$(dirname "$0")/../../../.." && pwd)"
 root="${SC_VERIFY_ROOT:-/tmp/shortcut-coach-verify}"
@@ -21,6 +21,30 @@ evdir() { local d; d="$evidence_root/$(date +%Y%m%d-%H%M%S)-$1"; mkdir -p "$d"; 
 menu_ready() { [ "$(osascript -e "tell application \"System Events\" to tell (first process whose unix id is $(pid)) to exists menu item \"Show Onboarding…\" of menu 1 of menu bar item 1 of menu bar 1" 2>/dev/null)" = true ]; }
 src_hash() { find "$repo/Sources" -name '*.swift' -print0 | sort -z | xargs -0 shasum | shasum | cut -d' ' -f1; }
 shot_to() { screencapture -x -R "$("$probe" strip)" "$1"; }
+# The unbundled debug binary has no bundle id, so HistoryFile falls back to this folder.
+history="$HOME/Library/Application Support/ShortcutCoach/history.json"
+# Brings <bundle-id> forward with <command...>, captures windows, the strip and the switch the app recorded,
+# then gives focus back. Usage: drive <label> <bundle-id> <description> <command...>
+drive() {
+    local label=$1 id=$2 desc=$3 d prev; shift 3
+    ours || die "instance is not ours or not running"
+    d=$(evdir "$label-$id")
+    prev=$("$probe" front)
+    echo "front before: $prev" > "$d/steps.txt"
+    "$probe" windows "$(pid)" > "$d/windows-before.txt"
+    echo "last key-down: $("$probe" keyago) s before the action" >> "$d/steps.txt"
+    "$@" >> "$d/steps.txt"; echo "action: $desc" >> "$d/steps.txt"
+    sleep 0.7
+    echo "front after: $("$probe" front)" >> "$d/steps.txt"
+    "$probe" windows "$(pid)" > "$d/windows-during.txt"
+    shot_to "$d/island.png"
+    sleep 2.5
+    "$probe" windows "$(pid)" > "$d/windows-after.txt"
+    # Records hold no nested braces, so the last {...} is the newest switch.
+    { grep -o '{[^}]*}' "$history" 2>/dev/null || echo "no history at $history"; } | tail -1 > "$d/history-last.txt"
+    [ -n "$prev" ] && open -b "$prev"  # give focus back; open -b is a switch with no click or key, so no flash
+    echo "$d"
+}
 
 cmd="${1:-}"; shift || true
 case "$cmd" in
@@ -53,29 +77,23 @@ doctor)
     check "menu bar item has Show Onboarding… and Quit (via Accessibility)" menu_ready
     check "two island panels exist (flash + guide), both hidden" '[ "$("$probe" windows "$(pid)" | grep -c "^layer=2147483631 onscreen=false")" = 2 ]'
     check "Tinycast has app bindings" 'defaults read com.abueammar.tinycast 2>/dev/null | grep -c hotkey.app. >/dev/null'
-    check "this shell is trusted for Accessibility (needed by: guide)" 'osascript -l JavaScript -e "ObjC.import(\"ApplicationServices\"); \$.AXIsProcessTrusted()" | grep -c true >/dev/null'
+    check "this shell is trusted for Accessibility (needed by: guide, dock)" 'osascript -l JavaScript -e "ObjC.import(\"ApplicationServices\"); \$.AXIsProcessTrusted()" | grep -c true >/dev/null'
     check "screen capture returns pixels" '(f=$(mktemp -t sc).png; screencapture -x -R 0,0,10,10 "$f" && [ -s "$f" ]; r=$?; rm -f "$f"; exit $r)'
+    echo "info Input Monitoring for this shell's app: $("$probe" listen) (granted: only the app's own hotkey is a hit)"
     [ $ok = 1 ]
     ;;
 windows)
     "$probe" windows "$(pid)"
     ;;
-miss)
-    id="${1:?bundle id of a Tinycast-bound app}"
-    ours || die "instance is not ours or not running"
-    d=$(evdir "miss-$id")
-    prev=$("$probe" front)
-    echo "front before: $prev" > "$d/steps.txt"
-    "$probe" windows "$(pid)" > "$d/windows-before.txt"
-    open -b "$id"; echo "action: open -b $id (Launch Services activation, like a Dock click)" >> "$d/steps.txt"
-    sleep 0.7
-    echo "front after: $("$probe" front)" >> "$d/steps.txt"
-    "$probe" windows "$(pid)" > "$d/windows-during.txt"
-    shot_to "$d/island.png"
-    sleep 2.5
-    "$probe" windows "$(pid)" > "$d/windows-after.txt"
-    [ -n "$prev" ] && open -b "$prev"  # give focus back; if $prev is bound this flashes once more
-    echo "$d"
+dock)
+    id="${1:?bundle id of an app in the Dock}"
+    drive dock "$id" "probe dock $id (a real left click on its Dock icon)" "$probe" dock "$id"
+    ;;
+open)
+    id="${1:?bundle id}"
+    # A key in the 3 s before would make the switch the user's. Wait up to 20 s for the keyboard to rest.
+    for _ in $(seq 40); do [ "$("$probe" keyago | cut -d. -f1)" -ge 4 ] && break; sleep 0.5; done
+    drive open "$id" "open -b $id (no click or key: a switch the system made, like a link)" open -b "$id"
     ;;
 guide)
     secs="${1:-3}"
