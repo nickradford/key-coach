@@ -8,8 +8,9 @@ A menu-bar app for macOS that helps you build the habit of using the app-switchi
 you set up in Tinycast.
 
 - **Miss flash.** Bring a bound app forward any other way (a click, the Dock, Cmd+Tab, a
-  launcher) and a black island drops from the notch for about 1.5 s, showing the app and the
-  hotkey you could have used.
+  launcher) and a black island drops from the notch, showing the app and the hotkey you could
+  have used. The flash gets shorter as you learn the hotkey and stops once you know it. See
+  [How the flash fades](#how-the-flash-fades).
 - **Hold guide.** Hold the hyper key (Caps Lock unless you chose another) for 0.7 s and an island lists every
   hyper binding, with a letter badge on each bound app's visible window. Release to hide it.
 
@@ -98,6 +99,22 @@ Any key counts as bringing the app forward, so a link or notification clicked wi
 typing still flashes.
 
 Window-management shortcuts are not coached.
+
+## How the flash fades
+
+Each app's flash depends on its last 20 attempts: switches to it that were a hit (its own
+hotkey) or a miss. Other switches do not count. The first row that matches applies.
+
+| Stage | Last 20 attempts | Flash |
+| --- | --- | --- |
+| Learned | all 20 made, at least 19 hits | none |
+| Fluent | at least 10 made, at least 80% hits | 0.6 s |
+| Practicing | at least 5 made, at least half hits | 1.0 s |
+| Learning | anything else | 1.6 s |
+
+When a hotkey press takes an app to **Learned**, the island shows the app and its hotkey once
+more, marked "✓ Learned". If two of the last 20 attempts become misses, the app drops back to
+**Fluent** and the flash returns.
 
 ## Uninstall
 

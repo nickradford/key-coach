@@ -19,7 +19,8 @@ menu.addItem(NSMenuItem(title: "Quit Shortcut Coach", action: #selector(NSApplic
 statusItem.menu = menu
 
 let coach = Coach()
-coach.onMiss = { flash.show($0, app: $1) }
+coach.onMiss = { flash.show($0, app: $1, hold: $2) }
+coach.onGraduate = { flash.celebrate($0, app: $1) }
 let guide = Guide()
 coach.onGuide = { visible in
     visible ? guide.show() : guide.hide()
