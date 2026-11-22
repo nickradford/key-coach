@@ -77,14 +77,14 @@ Before you trust a new counterexample, replay it against the real code, one mode
 
 ## Coverage
 
-Last confirmed in step with the code at commit `886d0e65f1904b914d0f150a3c888d99e53f6f69`.
+Last confirmed in step with the code at commit `90d1b4b578a065146e764fd2eeeaa46492ec80a4`.
 
 - `Sources/ShortcutCoach/Signal.swift`: `heldModifiers`, `hyperHeld`, `HyperKeyListener.handle`, the input-value callback and main run-loop scheduling in `HyperKeyListener.open`.
 - `Sources/ShortcutCoach/Coach.swift`: `start` (the 1/30 s timer), `sampleModifiers`, `poll`, `appActivated` (synchronous part and the 150 ms `Task`).
 - `Sources/CoachCore/Decisions.swift`: `HoldTracker` (all), `missedBinding` (only the `lastHeld` / `graceSeconds` branch).
 - `Sources/ShortcutCoach/main.swift`: `coach.onGuide` wiring to `Guide.show/hide`.
 
-`git diff 886d0e65f1904b914d0f150a3c888d99e53f6f69 -- Sources/ShortcutCoach/Signal.swift Sources/ShortcutCoach/Coach.swift Sources/CoachCore/Decisions.swift Sources/ShortcutCoach/main.swift` shows what changed since.
+`git diff 90d1b4b578a065146e764fd2eeeaa46492ec80a4 -- Sources/ShortcutCoach/Signal.swift Sources/ShortcutCoach/Coach.swift Sources/CoachCore/Decisions.swift Sources/ShortcutCoach/main.swift` shows what changed since.
 
 ## Not covered
 
