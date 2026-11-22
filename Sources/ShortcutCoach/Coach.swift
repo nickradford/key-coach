@@ -8,6 +8,9 @@ final class Coach: NSObject {
     var onMiss: @MainActor (Binding, NSRunningApplication, TimeInterval) -> Void = { binding, app, _ in
         print("MISS \(app.localizedName ?? binding.bundleID) \(binding.display(hyper: HyperKeyListener.shared.hyperKey))")
     }
+    var onGraduate: @MainActor (Binding, NSRunningApplication) -> Void = { binding, app in
+        print("GRADUATE \(app.localizedName ?? binding.bundleID)")
+    }
     var onGuide: (Bool) -> Void = { print("GUIDE \($0)") }
 
     private var lastHeld: [Int: TimeInterval] = [:]
@@ -82,12 +85,17 @@ final class Coach: NSObject {
             input.lastClick = lastClick
             let ownID = Bundle.main.bundleIdentifier
             // Read before this switch is recorded, so the flash reflects how well the app was known going in.
-            if let binding = missedBinding(input, bindings: bindings, ownBundleID: ownID),
-               let hold = fluency(of: id, in: history.records).flashHold {
+            let before = fluency(of: id, in: history.records)
+            if let binding = missedBinding(input, bindings: bindings, ownBundleID: ownID), let hold = before.flashHold {
                 onMiss(binding, app, hold)
             }
             if app.activationPolicy == .regular, let outcome = switchOutcome(input, bindings: bindings, ownBundleID: ownID) {
                 history.append(SwitchRecord(bundleID: id, outcome: outcome, method: switchMethod(input), at: at))
+                // Only on a hit: a miss can complete the first 20 attempts, and "Learned" right after a miss reads wrong.
+                if outcome == .hit, before != .graduated, fluency(of: id, in: history.records) == .graduated,
+                   let binding = bindings.first(where: { $0.bundleID == id }) {
+                    onGraduate(binding, app)
+                }
             }
         }
     }
