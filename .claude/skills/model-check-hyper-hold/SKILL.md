@@ -36,8 +36,10 @@ Read every result, pass or fail, with the pstack `/statechart` skill (in Claude 
 
 ## Bounds and assumptions
 
-- `MaxPresses = 2` (two presses of the hyper key), one bound-app activation per run (by hotkey or by click), `DelayPolls = 2` stands in for `HoldTracker.delay` (21 ticks of the 1/30 s timer in the app; only "at least one tick" matters to the logic). About 5,200 states.
+- `MaxPresses = 2` (two presses of the hyper key), one bound-app activation per run (by hotkey or by click), `DelayPolls = 2` stands in for `HoldTracker.delay` (21 ticks of the 1/30 s timer in the app; only "at least one tick" matters to the logic). About 4,400 states.
+- The code compares times and never counts them, so the model keeps only their order: whether the activation came at or after `pressedAt`, and at or after `HoldTracker.heldSince`.
 - No timing: a poll can run between any two events, or not at all. That matches the code, which does nothing to force a poll between two run-loop callbacks; in the app a gap with no poll needs a hold shorter than one tick (33 ms) or a main-thread stall that queues the events, since IOHIDManager drains its queued values in one run-loop pass.
+- `DecideMiss` runs only after every HID value that was already waiting when `appActivated` ran (`hidAhead`). The run loop handles a waiting value well inside the Task's 150 ms sleep. A main-thread stall of more than 150 ms right after `appActivated` breaks this. Without this assumption the model finds the hotkey flash again.
 - Input Monitoring is granted and the listener is open. One physical hyper key; the hyper key choice does not change. No quit or hide; the bound app was not already in front. `lastHeld` never ages past `graceSeconds` (this only makes a false miss harder to find).
 
 ## What each model step is in the code
@@ -46,19 +48,19 @@ Each main-thread action is one main-actor callback, so it is indivisible in the 
 
 | Model action | Code |
 | --- | --- |
-| `HidCallback` | `HyperKeyListener.handle(_:down:)`, run on the main run loop by the callback in `HyperKeyListener.open()` (`Sources/ShortcutCoach/Signal.swift`) |
-| `Poll` | `Coach.poll()`: `sampleModifiers()` then `HoldTracker.update(hyperHeld:now:)` (`Coach.swift`, `Sources/CoachCore/Decisions.swift`); `guideVisible` is `Coach.guideVisible`, which drives `Guide.show/hide` in `main.swift` |
+| `HidCallback` | `HyperKeyListener.handle(_:down:)`: sets `isDown`, and `pressedAt` on a key-down; run on the main run loop by the callback in `HyperKeyListener.open()` (`Sources/ShortcutCoach/Signal.swift`) |
+| `Poll` | `Coach.poll()`: `sampleModifiers()`, which also folds `pressedAt` into `lastHeld`, then `HoldTracker.update(hyperHeld:pressedAt:now:)` with `pressedAt` only while `isDown` (`Coach.swift`, `Sources/CoachCore/Decisions.swift`); `guideVisible` is `Coach.guideVisible`, which drives `Guide.show/hide` in `main.swift` |
 | `Held` | `heldModifiers() == hyperModifiers`: `isDown`, else the posted flags (`Signal.swift`) |
-| `AppActivated` | the synchronous part of `Coach.appActivated`: `sampleModifiers()`, `MissInput` built with `lastHeld` as it is now, `tracker.boundAppActivated()` |
-| `DecideMiss` | the `Task` in `Coach.appActivated` that calls `missedBinding` 150 ms later on the captured input |
+| `AppActivated` | the synchronous part of `Coach.appActivated`: `sampleModifiers()`, `tracker.boundAppActivated(now:)` |
+| `DecideMiss` | the `Task` in `Coach.appActivated`, 150 ms later: `sampleModifiers()`, then `missedBinding` with `lastHeld` as it is then |
 | `UserPressesHyper`, `UserReleasesHyper`, `UserMovesMouse`, `UserUsesHotkey`, `UserClicksBoundApp` | outside the app: the key, Tinycast's posted flags (a mouse move clears them), Tinycast switching on hyper + letter, a click / Dock / Cmd+Tab |
 
 ## Findings (current code)
 
-Both are real at the sync commit; `HoldTracker`'s part was replayed in a Swift test.
+None. Both earlier findings are fixed:
 
-1. **`HotkeyNeverFlashes` breaks: a hotkey switch can flash a miss.** You press hyper, press the letter, and release; Tinycast switches apps. The main run loop has not yet run the key-down callback or a poll (a stall, or a very quick chord), and the posted flags are already clear (released, or reset by a mouse move). `appActivated` runs first: `heldModifiers()` reads nothing, `lastHeld` has no hyper entry, the captured `MissInput` says the hotkey was not used, and 150 ms later `missedBinding` flashes. The design doc already says the activation-time sample catches a tap between polls only "usually"; the root cause is that `isDown` and the flags are sampled as levels, so a press that comes and goes between samples is lost.
-2. **`GuideShowsOnLongHold` breaks: the guide can stay hidden for a whole hold.** A bound app activates while hyper is up, so `appActivated` calls `tracker.boundAppActivated()` and sets `blocked` outside any hold. If you press hyper before the next poll (within 33 ms, or during a stall), no `update(hyperHeld: false, ...)` runs to clear `blocked`, so the hold that follows never shows the guide. The same happens when you release and press again between two polls after a hotkey switch. Replay: `HoldTracker()`, `update(false, 9.98)`, `boundAppActivated()`, `update(true, 10.0)`, `update(true, 11.0)` returns false.
+1. `HotkeyNeverFlashes`: a hotkey switch flashed a miss when the key-down callback ran after `appActivated` and the posted flags were already clear. `HyperKeyListener` now records `pressedAt`, `sampleModifiers` folds it into `lastHeld`, and the miss decision reads `lastHeld` when it runs.
+2. `GuideShowsOnLongHold`: a bound app activating while hyper was up, or a release and press between two polls, kept the guide hidden for a whole hold. `HoldTracker` now keeps the activation time and blocks only when the activation is at or after the hold's start, which is `pressedAt` while the listener sees the key down.
 
 `GuideHidesAfterRelease` holds: the listener is event-driven, so the last key event always wins.
 
@@ -87,3 +89,5 @@ Last confirmed in step with the code at commit `886d0e65f1904b914d0f150a3c888d99
 ## Not covered
 
 Changing the hyper key (`refreshHyperKey`, onboarding `capture`), lost key-ups (keyboard unplugged or sleep while held, Input Monitoring revoked), two keyboards or Caps Lock and F18 both reporting, the no-permission path beyond the flags reset by a mouse move, quit/hide suppression and `previousFrontmost`, binding parsing, real timing (grace expiry, the 0.7 s delay as time), and everything the guide and flash draw.
+
+Two promises are checked in one direction only. No property says that a real miss flashes, and by design a hyper press in the 150 ms before the decision suppresses one. No property says that the guide stays hidden after a bound app activates during the hold. A scratch property for it fails on the fixed code when `appActivated` runs before the key-down callback, because `pressedAt` is the time the callback ran.

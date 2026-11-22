@@ -13,7 +13,7 @@ if [ ! -f "$jar" ]; then
 fi
 
 # Properties the current code is known to break (see SKILL.md, Findings). Update both together.
-known="HotkeyNeverFlashes GuideShowsOnLongHold"
+known=""
 all="TypeOK GuideHidesAfterRelease HotkeyNeverFlashes GuideShowsOnLongHold"
 props=${*:-$all}
 

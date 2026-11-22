@@ -30,11 +30,16 @@ final class Coach: NSObject {
     private func sampleModifiers() {
         let held = heldModifiers()
         if held != 0 { lastHeld[held] = now }
+        if let pressed = HyperKeyListener.shared.pressedAt {
+            lastHeld[hyperModifiers] = max(lastHeld[hyperModifiers] ?? pressed, pressed)
+        }
     }
 
     @objc private func poll() {
         sampleModifiers()
-        let visible = tracker.update(hyperHeld: hyperHeld(), now: now)
+        let listener = HyperKeyListener.shared
+        // Only while down. A stale press time would open the guide at once when hyper comes from the flags.
+        let visible = tracker.update(hyperHeld: hyperHeld(), pressedAt: listener.isDown ? listener.pressedAt : nil, now: now)
         if visible != guideVisible {
             guideVisible = visible
             onGuide(visible)
@@ -46,7 +51,7 @@ final class Coach: NSObject {
         sampleModifiers()
         let id = app.bundleIdentifier ?? ""
         let bindings = parseBindings(loadTinycastPrefs())
-        let input = MissInput(activated: id, previousFrontmost: previousFrontmost, now: now, lastHeld: lastHeld)
+        let input = MissInput(activated: id, previousFrontmost: previousFrontmost, now: now)
         if bindings.contains(where: { $0.bundleID == id }) { tracker.boundAppActivated(now: now) }
         // A lock screen, password prompt or other non-regular app taking focus is not a switch:
         // coming back from it to the same app must not count as a miss.
@@ -54,7 +59,11 @@ final class Coach: NSObject {
         // macOS reports a quit or hide about 10 ms after the next app's activation, so decide a moment later.
         Task {
             try? await Task.sleep(for: .milliseconds(150))
+            // Read lastHeld now, so a key-down handled after the activation still counts.
+            // Tradeoff: a hyper press in these 150 ms also suppresses a real miss.
+            sampleModifiers()
             var input = input
+            input.lastHeld = lastHeld
             input.lastQuitOrHide = lastQuitOrHide
             if let binding = missedBinding(input, bindings: bindings, ownBundleID: Bundle.main.bundleIdentifier) {
                 onMiss(binding, app)

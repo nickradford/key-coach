@@ -34,6 +34,8 @@ final class HyperKeyListener {
     static let shared = HyperKeyListener()
 
     private(set) var isDown = false
+    /// When the hyper key last went down (system uptime). Kept after release, so a press between two samples still counts.
+    private(set) var pressedAt: TimeInterval?
     private(set) var hyperKey: HyperKey = .capsLock
     /// Called with any hyper-candidate key pressed down, while onboarding asks the user to press theirs.
     var capture: (@MainActor (HyperKey) -> Void)?
@@ -68,7 +70,9 @@ final class HyperKeyListener {
 
     private func handle(_ key: HyperKey, down: Bool) {
         if down { capture?(key) }  // first, so a newly chosen key lights on this very press
-        if key == hyperKey { isDown = down }
+        guard key == hyperKey else { return }
+        isDown = down
+        if down { pressedAt = ProcessInfo.processInfo.systemUptime }
     }
 
     /// Opens the keyboard devices; false while Input Monitoring is not granted.

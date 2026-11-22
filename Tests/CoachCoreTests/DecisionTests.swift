@@ -12,6 +12,7 @@ func miss(_ i: MissInput) -> Binding? { missedBinding(i, bindings: all, ownBundl
 @Test func hyperHeldWithinGraceIsNotAMiss() {
     #expect(miss(MissInput(activated: "slack", previousFrontmost: "zed", now: 100, lastHeld: [6912: 97.1])) == nil)
     #expect(miss(MissInput(activated: "slack", previousFrontmost: "zed", now: 100, lastHeld: [6912: 100])) == nil)
+    #expect(miss(MissInput(activated: "slack", previousFrontmost: "zed", now: 100, lastHeld: [6912: 100.1])) == nil)  // key-down handled after the activation
     #expect(miss(MissInput(activated: "slack", previousFrontmost: "zed", now: 100, lastHeld: [6912: 96.9])) == slackB)
 }
 @Test func eachBindingNeedsItsOwnModifiers() {
